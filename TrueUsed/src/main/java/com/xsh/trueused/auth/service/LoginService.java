@@ -2,6 +2,7 @@ package com.xsh.trueused.auth.service;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -31,6 +32,12 @@ public class LoginService {
     private final org.springframework.security.core.userdetails.UserDetailsService userDetailsService;
     private final TokenRevocationService tokenRevocationService;
 
+    @Value("${security.refresh-cookie.secure:false}")
+    private boolean forceSecureRefreshCookie;
+
+    @Value("${security.refresh-cookie.same-site:Lax}")
+    private String refreshCookieSameSite;
+
     /**
      * 使用用户名密码认证，认证成功后签发 JWT 并返回。
      */
@@ -47,8 +54,8 @@ public class LoginService {
             String refreshToken = jwtTokenProvider.generateRefreshTokenFromUser(principal);
             ResponseCookie cookie = ResponseCookie.from("refresh_token", refreshToken)
                     .httpOnly(true)
-                    .secure(false) // 如果是 https，改为 true
-                    .sameSite("Lax")
+                    .secure(isSecureRefreshCookie())
+                    .sameSite(refreshCookieSameSite)
                     .path("/")
                     .maxAge(jwtTokenProvider.getRefreshTokenExpirationMs() / 1000)
                     .build();
@@ -109,8 +116,8 @@ public class LoginService {
         String newRefreshToken = jwtTokenProvider.generateRefreshTokenFromUser(userDetails);
         ResponseCookie cookie = ResponseCookie.from("refresh_token", newRefreshToken)
                 .httpOnly(true)
-                .secure(false)
-                .sameSite("Lax")
+                .secure(isSecureRefreshCookie())
+                .sameSite(refreshCookieSameSite)
                 .path("/")
                 .maxAge(jwtTokenProvider.getRefreshTokenExpirationMs() / 1000)
                 .build();
@@ -141,8 +148,8 @@ public class LoginService {
         // 清除 Cookie：与设置时的属性保持一致（path/samesite/secure），以确保浏览器能覆盖删除
         ResponseCookie expired = ResponseCookie.from("refresh_token", "")
                 .httpOnly(true)
-                .secure(false)
-                .sameSite("Lax")
+                .secure(isSecureRefreshCookie())
+                .sameSite(refreshCookieSameSite)
                 .path("/")
                 .maxAge(0)
                 .build();
@@ -150,5 +157,17 @@ public class LoginService {
         if (attrs != null && attrs.getResponse() != null) {
             attrs.getResponse().addHeader("Set-Cookie", expired.toString());
         }
+    }
+
+    private boolean isSecureRefreshCookie() {
+        if (forceSecureRefreshCookie) {
+            return true;
+        }
+        var requestAttributes = RequestContextHolder.getRequestAttributes();
+        if (!(requestAttributes instanceof ServletRequestAttributes attrs) || attrs.getRequest() == null) {
+            return false;
+        }
+        String forwardedProto = attrs.getRequest().getHeader("X-Forwarded-Proto");
+        return attrs.getRequest().isSecure() || "https".equalsIgnoreCase(forwardedProto);
     }
 }

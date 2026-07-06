@@ -2,6 +2,7 @@ package com.xsh.trueused.inspection.controller;
 
 import java.util.List;
 
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -77,7 +78,9 @@ public class InspectionController {
             log.info("PDF stream generated successfully for inspection ID: {}, size: {} bytes", id, pdfBytes.length);
 
             HttpHeaders headers = new HttpHeaders();
-            headers.add("Content-Disposition", "inline; filename=inspection-report-" + id + ".pdf");
+            headers.setContentDisposition(ContentDisposition.inline()
+                    .filename("inspection-report-" + id + ".pdf")
+                    .build());
             headers.add("Cache-Control", "no-cache, no-store, must-revalidate");
             headers.add("Pragma", "no-cache");
             headers.add("Expires", "0");
@@ -95,7 +98,7 @@ public class InspectionController {
             // Returning a 500 with the error message in body.
             return ResponseEntity.internalServerError()
                     .contentType(MediaType.TEXT_PLAIN)
-                    .body(("PDF Generation Error: " + e.getMessage()).getBytes());
+                    .body("PDF Generation Error".getBytes());
         }
     }
 }

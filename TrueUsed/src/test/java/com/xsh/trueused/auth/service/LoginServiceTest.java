@@ -18,6 +18,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
@@ -43,13 +44,15 @@ class LoginServiceTest {
     @InjectMocks
     private LoginService loginService;
 
+    private MockHttpServletRequest request;
     private MockHttpServletResponse response;
 
     @BeforeEach
     void setUp() {
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        request = new MockHttpServletRequest();
         response = new MockHttpServletResponse();
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request, response));
+        ReflectionTestUtils.setField(loginService, "refreshCookieSameSite", "Lax");
     }
 
     @AfterEach
@@ -78,5 +81,15 @@ class LoginServiceTest {
         String setCookie = response.getHeader("Set-Cookie");
         assertTrue(setCookie.contains("refresh_token="));
         assertTrue(setCookie.contains("Max-Age=0"));
+    }
+
+    @Test
+    void shouldMarkRefreshCookieSecureBehindHttpsProxy() {
+        request.addHeader("X-Forwarded-Proto", "https");
+
+        loginService.logout("access-token", "refresh-token");
+
+        String setCookie = response.getHeader("Set-Cookie");
+        assertTrue(setCookie.contains("Secure"));
     }
 }
