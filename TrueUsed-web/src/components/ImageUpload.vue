@@ -91,10 +91,12 @@ const processFiles = async (files) => {
         const timestamp = signatureData?.timestamp;
         const signature = signatureData?.signature;
         const uploadPreset = signatureData?.upload_preset || signatureData?.uploadPreset;
+        const cloudName = signatureData?.cloud_name || signatureData?.cloudName || import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 
-        if (!apiKey || !timestamp || !signature) {
+        if (!apiKey || !timestamp || !signature || !cloudName) {
             throw new Error('签名数据缺失');
         }
+        const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
 
         const uploadPromises = filesToUpload.map((file) => {
             const formData = new FormData();
@@ -105,10 +107,7 @@ const processFiles = async (files) => {
             if (uploadPreset) {
                 formData.append('upload_preset', uploadPreset);
             }
-            return axios.post(
-                `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`,
-                formData
-            );
+            return axios.post(uploadUrl, formData);
         });
 
         const results = await Promise.all(uploadPromises);

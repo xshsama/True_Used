@@ -31,6 +31,7 @@ public class CloudinaryService {
         signatureData.put("timestamp", timestamp);
         signatureData.put("signature", signature);
         signatureData.put("api_key", cloudinary.config.apiKey);
+        signatureData.put("cloud_name", cloudinary.config.cloudName);
 
         return signatureData;
     }

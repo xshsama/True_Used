@@ -271,3 +271,45 @@
   前端 npm audit 与根目录生产依赖 audit 均为 0 vulnerabilities，Vite 构建通过但保留既有 `@apply` 和 `:deep(...)` CSS minify warning；OSV 对显式 Maven 依赖未返回漏洞；首次 `mvn test` 暴露 JDK 24 下 Lombok annotation processor `1.18.32` 的 `TypeTag UNKNOWN` 编译问题，已将 `maven-compiler-plugin` 的 Lombok processor 版本改为 `${lombok.version}`；随后修复 JWT `validateToken` 未复用 `parseAllClaims` 的 issuer/audience 校验遗漏，最终 `mvn test` 通过 50 个测试且 0 failures/errors。
 - 后续建议：
   补充 WebSocket 集成测试和支付表单 allowlist 浏览器测试；生产部署时设置真实 `JWT_SECRET`、`SECURITY_CORS_ALLOWED_ORIGIN_PATTERNS`、`SECURITY_REFRESH_COOKIE_SECURE=true` 与正式 Alipay/Cloudinary 配置。
+
+## 2026-07-06 创建管理员账号
+
+- 问题描述：
+  需要在当前 TrueUsed 本地环境中开通一个可登录后台的管理员账号。
+- 根因分析：
+  当前数据库已有 `ROLE_USER` 与 `ROLE_ADMIN` 角色数据，前端也已经接入 `/admin` 后台路由，但现有用户查询结果中没有绑定 `ROLE_ADMIN` 的可用账号。
+- 解决方法：
+  通过 `/api/auth/register` 创建 `admin` 用户，确保密码使用后端 `BCryptPasswordEncoder` 生成；随后在 MySQL 中绑定 `ROLE_ADMIN`，并将账号昵称更新为“系统管理员”。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+  本地 MySQL `trueused.users`
+  本地 MySQL `trueused.user_roles`
+- 验证方式：
+  登录接口 `/api/auth/login` 返回 `ROLE_USER, ROLE_ADMIN`；携带 JWT 访问 `/api/admin/users` 返回 HTTP 200。
+- 结果：
+  管理员账号 `admin` 已创建并启用，角色为 `ROLE_ADMIN, ROLE_USER`。
+- 后续建议：
+  本地联调结束后建议尽快修改默认密码，生产环境应改为一次性初始化脚本或受控运维命令，避免硬编码管理员凭据。
+
+## 2026-07-06 同步远端配置修复提交
+
+- 问题描述：
+  本地存在配置修复改动，但远端 `origin/main` 已先推送 7 个提交，直接推送会被拒绝。
+- 根因分析：
+  本地分支落后远端安全加固与依赖升级提交，同时本地改动覆盖了前端 lockfile 和问题日志，rebase 时产生冲突。
+- 解决方法：
+  先提交本地改动，再执行 `git fetch origin` 与 `git rebase origin/main`；lockfile 冲突保留远端安全升级版本，日志冲突合并远端记录、本地记录和本次同步记录。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed/.env.example`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/resources/application.properties`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/storage/service/CloudinaryService.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/components/ImageUpload.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/PostCreate.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/ReviewCreate.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  检查 rebase 冲突标记、运行 `git diff --check`，并确认最终分支只比 `origin/main` 多一个配置修复提交。
+- 结果：
+  本地配置修复提交已重放到最新 `origin/main` 之后，可推送到远端。
+- 后续建议：
+  后续多人协作前先执行 `git fetch` 并查看 `main...origin/main` 差异，减少 lockfile 与文档冲突。
