@@ -2,6 +2,7 @@ package com.xsh.trueused.security.jwt;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 import javax.crypto.SecretKey;
 
@@ -31,6 +32,12 @@ public class JwtTokenProvider {
     @Value("${security.jwt.refresh-expiration-ms:604800000}") // default 7 days
     private long refreshExpirationMs;
 
+    @Value("${security.jwt.issuer:trueused}")
+    private String issuer;
+
+    @Value("${security.jwt.audience:trueused-web}")
+    private String audience;
+
     private SecretKey getSigningKey() {
         // Accept plain text or base64 secret
         byte[] keyBytes;
@@ -48,6 +55,9 @@ public class JwtTokenProvider {
         Date expiry = new Date(now.getTime() + expirationMs);
         return Jwts.builder()
                 .setSubject(principal.getUsername())
+                .setIssuer(issuer)
+                .setAudience(audience)
+                .setId(UUID.randomUUID().toString())
                 .setIssuedAt(now)
                 .setExpiration(expiry)
                 .claim("uid", principal.getId())
@@ -62,6 +72,9 @@ public class JwtTokenProvider {
         Date expiry = new Date(now.getTime() + expirationMs);
         return Jwts.builder()
                 .setSubject(userDetails.getUsername())
+                .setIssuer(issuer)
+                .setAudience(audience)
+                .setId(UUID.randomUUID().toString())
                 .setIssuedAt(now)
                 .setExpiration(expiry)
                 .claim("typ", "access")
@@ -74,6 +87,9 @@ public class JwtTokenProvider {
         Date expiry = new Date(now.getTime() + expirationMs);
         return Jwts.builder()
                 .setSubject(principal.getUsername())
+                .setIssuer(issuer)
+                .setAudience(audience)
+                .setId(UUID.randomUUID().toString())
                 .setIssuedAt(now)
                 .setExpiration(expiry)
                 .claim("uid", principal.getId())
@@ -88,6 +104,9 @@ public class JwtTokenProvider {
         Date expiry = new Date(now.getTime() + refreshExpirationMs);
         var builder = Jwts.builder()
                 .setSubject(userDetails.getUsername())
+                .setIssuer(issuer)
+                .setAudience(audience)
+                .setId(UUID.randomUUID().toString())
                 .setIssuedAt(now)
                 .setExpiration(expiry)
                 .claim("typ", "refresh")
@@ -101,6 +120,8 @@ public class JwtTokenProvider {
     public Claims parseAllClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
+                .requireIssuer(issuer)
+                .requireAudience(audience)
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
@@ -113,7 +134,7 @@ public class JwtTokenProvider {
 
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parseClaimsJws(token);
+            parseAllClaims(token);
             return true;
         } catch (Exception e) {
             return false;
