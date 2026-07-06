@@ -1,5 +1,4 @@
 <script setup>
-import { listCategories } from '@/api/categories';
 import { getCloudinarySignature } from '@/api/cloudinary';
 import { createConsignment } from '@/api/consignment';
 import { createProduct } from '@/api/products';
@@ -11,7 +10,6 @@ import {
     ArrowRight,
     Camera,
     CheckCircle2,
-    ChevronRight,
     HelpCircle,
     MapPin,
     Package,
@@ -122,61 +120,11 @@ const handleFileChange = async (event) => {
 };
 
 // --- 分类选择 ---
-const showCategoryPicker = ref(false);
-const categoryOptions = ref([]);
+const categorySelectRef = ref(null);
 
-const buildTree = (flat) => {
-    if (!Array.isArray(flat)) return [];
-
-    const nodes = new Map();
-    // First pass: Create node objects
-    flat.forEach((c) => {
-        const id = String(c.id);
-        nodes.set(id, { text: c.name, value: c.id, children: [] });
-    });
-
-    const roots = [];
-    // Second pass: Link children to parents
-    flat.forEach((c) => {
-        const node = nodes.get(String(c.id));
-        const parentId = c.parentId ? String(c.parentId) : null;
-
-        if (parentId && nodes.has(parentId)) {
-            nodes.get(parentId).children.push(node);
-        } else {
-            roots.push(node);
-        }
-    });
-
-    // Third pass: Remove empty children arrays to make them leaf nodes
-    const prune = (list) => {
-        list.forEach((node) => {
-            if (node.children.length === 0) {
-                delete node.children;
-            } else {
-                prune(node.children);
-            }
-        });
-    };
-    prune(roots);
-
-    return roots;
-};
-
-const loadCategories = async () => {
-    try {
-        const res = await listCategories();
-        categoryOptions.value = buildTree(res);
-    } catch (e) {
-        console.error(e);
-    }
-};
-
-const onCategoryFinish = ({ selectedOptions }) => {
-    const lastOption = selectedOptions[selectedOptions.length - 1];
-    form.value.categoryId = lastOption.value;
-    form.value.categoryName = selectedOptions.map(o => o.text).join(' / ');
-    showCategoryPicker.value = false;
+const onCategoryChange = (payload) => {
+    form.value.categoryId = payload?.value ?? payload;
+    form.value.categoryName = payload?.label || '';
 };
 
 // --- 地区选择 ---
@@ -231,7 +179,7 @@ const onSubmit = async () => {
     }
     if (!form.value.categoryId) {
         showToast('请补充商品分类信息');
-        showCategoryPicker.value = true;
+        categorySelectRef.value?.open?.();
         return;
     }
 
@@ -317,7 +265,6 @@ const serviceFee = computed(() => {
 const cloudinaryCloudName = ref(import.meta.env.VITE_CLOUDINARY_CLOUD_NAME);
 
 onMounted(() => {
-    loadCategories();
     if (userStore.isLoggedIn && !userStore.user) {
         userStore.loadMe().catch(() => { });
     }
@@ -423,15 +370,14 @@ onMounted(() => {
             <section class="bg-white rounded-2xl p-8 shadow-sm border border-gray-100/50 space-y-6">
                 <div class="flex justify-between items-center mb-2">
                     <h2 class="font-bold text-lg text-[#2c3e50]">商品信息</h2>
-                    <!-- Category Selection Trigger (Small) -->
-                    <button @click="showCategoryPicker = true"
-                        class="text-sm text-[#4a8b6e] font-medium flex items-center gap-1">
-                        {{ form.categoryName || '选择分类' }}
-                        <ChevronRight :size="14" />
-                    </button>
                 </div>
 
                 <div class="space-y-4">
+                    <div class="category-select-control">
+                        <CategorySelect ref="categorySelectRef" v-model="form.categoryId" label="商品分类"
+                            placeholder="选择分类" @change="onCategoryChange" />
+                    </div>
+
                     <input type="text" v-model="form.title" placeholder="品牌型号，宝贝特点"
                         class="w-full bg-gray-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-[#4a8b6e]/20 outline-none font-bold placeholder:font-normal" />
 
@@ -651,13 +597,6 @@ onMounted(() => {
         <!-- Hidden File Input -->
         <input type="file" ref="fileInput" @change="handleFileChange" multiple accept="image/*" class="hidden" />
 
-        <!-- Popups -->
-        <van-popup v-model:show="showCategoryPicker" round position="bottom">
-            <van-cascader v-model="form.categoryId" title="选择分类" :options="categoryOptions"
-                :field-names="{ text: 'text', value: 'value', children: 'children' }"
-                @close="showCategoryPicker = false" @finish="onCategoryFinish" />
-        </van-popup>
-
         <van-popup v-model:show="showLocationPicker" position="bottom">
             <van-picker :columns="locationColumns" @confirm="onLocationConfirm" @cancel="showLocationPicker = false" />
         </van-popup>
@@ -695,6 +634,30 @@ onMounted(() => {
 .mode-card-default:hover {
     border-color: #d1fae5;
     /* hover:border-emerald-100 */
+}
+
+.category-select-control :deep(.van-cell) {
+    align-items: center;
+    min-height: 48px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: #f9fafb;
+}
+
+.category-select-control :deep(.van-field__label) {
+    color: #4b5563;
+    font-weight: 700;
+}
+
+.category-select-control :deep(.van-field__control) {
+    color: #2c3e50;
+    font-weight: 700;
+    text-align: right;
+}
+
+.category-select-control :deep(.van-field__control::placeholder) {
+    color: #9ca3af;
+    font-weight: 500;
 }
 
 /* 切换动画 */

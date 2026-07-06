@@ -313,3 +313,40 @@
   本地配置修复提交已重放到最新 `origin/main` 之后，可推送到远端。
 - 后续建议：
   后续多人协作前先执行 `git fetch` 并查看 `main...origin/main` 差异，减少 lockfile 与文档冲突。
+
+## 2026-07-06 发布商品分类选择弹层修复
+
+- 问题描述：
+  发布商品页面选择分类交互不稳定，用户点击后无法明确看到分类弹层或分类数据。
+- 根因分析：
+  发布页内联维护了一套重复的 `van-popup + van-cascader` 逻辑，没有 loading、empty、retry 等状态；当分类接口未及时返回、失败或为空时，页面表现近似“点击没反应”。同时分类选择入口位于商品信息标题右侧，点击区域偏弱。
+- 解决方法：
+  将发布页分类选择改为复用 `CategorySelect` 组件；组件统一负责分类加载、树构建、加载态、空态、重试、叶子类目选择后自动关闭，并向父组件回传分类 id 与完整路径 label。发布页校验未选择分类时直接打开该组件。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/components/CategorySelect.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/PostCreate.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  执行 `TrueUsed-web` 下 `npm run build`；使用 `VITE_USE_MOCK=true` 启动 Vite dev server，并通过 Playwright 访问 `/post/create`，点击商品分类字段，验证弹层可见、分类项渲染、选择后关闭并回填字段值。
+- 结果：
+  前端构建通过；Playwright 验证弹层可见，mock 分类项 `数码/电脑/摄影/穿搭` 正常渲染，选择 `数码` 后弹层关闭且输入框回填 `数码`。
+- 后续建议：
+  若真实环境仍显示“暂无分类”，优先检查 `/api/categories` 是否返回非空数组以及后端数据库 `categories` 初始化数据是否已执行。
+
+## 2026-07-06 发布商品分类弹层黑屏修复
+
+- 问题描述：
+  发布商品页点击商品分类后屏幕变黑，但底部分类面板没有显示。
+- 根因分析：
+  Vant `Popup` 默认留在当前组件层级中渲染；发布页处于路由切换容器内，页面容器存在 transform/overflow 相关样式，容易让弹层面板被父级层叠上下文影响，最终只看到遮罩。
+- 解决方法：
+  将分类 `van-popup` teleport 到 `body`，为遮罩和面板分别固定 z-index，并给弹层面板显式白底、高度和隐藏溢出，确保面板稳定压在遮罩上方。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/components/CategorySelect.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  执行 `TrueUsed-web` 下 `npm run build`；使用 `VITE_USE_MOCK=true` 在独立端口 5180 启动 Vite dev server，并通过 Playwright 验证遮罩 z-index 为 3199、分类弹层 z-index 为 3200、弹层白底且尺寸正常，选择分类后关闭并回填。
+- 结果：
+  构建通过；Playwright 验证分类弹层可见，弹层在遮罩上方，选择 `数码` 后正常关闭并回填。
+- 后续建议：
+  本地浏览器若仍看到旧黑屏，先强刷页面或重启 Vite dev server，避免热更新缓存残留旧组件。
