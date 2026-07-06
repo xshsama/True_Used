@@ -1,0 +1,41 @@
+:root {
+  /* Colors - Aligned with theme.css */
+  --primary-color: #00875A;
+  --primary-color-rgb: 0, 135, 90;
+  --primary-color-dark: #006946;
+  --text-color-primary: #1F2937;
+  --text-color-secondary: #64748b;
+  --text-color-placeholder: #cbd5e1;
+  --background-color-light: #F5F7FA;
+  --card-background-color: #ffffff;
+  --border-color: #e2e8f0;
+
+  /* Typography */
+  --font-size-base: 16px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 600;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* Borders */
+  --card-radius: 10px;
+  --radius-pill: 9999px;
+
+  /* Shadows */
+  --shadow-soft: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-soft-lg: 0 4px 12px rgba(0, 0, 0, 0.06);
+
+  /* Auxiliary Colors */
+  --auxiliary-color: #FF5722; /* Urgency - 赤诚橙 */
+  --auxiliary-color-rgb: 255, 87, 34;
+  --price-color: #FF5722;
+
+  /* Fonts */
+  --font-family-number: 'DIN Condensed', 'Roboto Bold', 'DIN Alternate', sans-serif;
+}

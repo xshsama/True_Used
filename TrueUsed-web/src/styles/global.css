@@ -1,0 +1,582 @@
+/* 全局样式 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none; /* Prevent bounce/rubber-banding globally */
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+a:hover {
+  color: var(--primary-color);
+}
+
+button {
+  border: none;
+  outline: none;
+  background: transparent;
+}
+
+/* 设计 Tokens */
+:root {
+  /* 统一主题 */
+  --primary-color: #4CAF50;
+  --primary-color-2: #388E3C;
+  
+  /* Vant 主题映射 */
+  --van-primary-color: var(--primary-color);
+  --van-success-color: #4CAF50;
+  --van-danger-color: #ef4444;
+  --van-warning-color: #FFB300;
+  --van-text-color: #111827;
+  --van-background-color: #F7F8FC;
+  --van-background-color-light: #ffffff;
+  
+  /* 卖家中心强调色 - 柔和版 */
+  --accent-purple: #7c3aed;
+  --accent-orange: #FFB300;
+  --accent-blue: var(--primary-color);
+}
+
+.page {
+  min-height: 100vh;
+  padding-bottom: 0;
+  background-color: var(--bg-page);
+}
+
+.page-header {
+  background: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* 商品卡片样式 */
+.product-card {
+  background: #fff;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-color);
+  transition: shadow 0.2s ease;
+}
+
+.product-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.product-image {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  background-color: var(--bg-input);
+}
+
+.product-info {
+  padding: 12px;
+}
+
+.product-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.product-price {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary); /* 价格不再使用红色，使用主色或黑色 */
+  margin-bottom: 4px;
+}
+
+.product-location {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* 网格布局 */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+/* 列表布局 */
+.product-list {
+  padding: 16px;
+}
+
+.product-list-item {
+  display: flex;
+  background: #fff;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.product-list-image {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-sm);
+  margin-right: 12px;
+  object-fit: cover;
+  background-color: var(--bg-input);
+}
+
+.product-list-content {
+  flex: 1;
+}
+
+/* 空状态 */
+.empty-state {
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.empty-image {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 16px;
+  opacity: 0.5;
+}
+
+.empty-text {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  margin-bottom: 16px;
+}
+
+/* 加载状态 */
+.loading-container {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+/* 统一卡片与按钮 */
+.tu-card {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.btn-primary, .van-button--primary {
+  color: #fff !important;
+  background: var(--primary-color) !important;
+  border: none !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.btn-primary:active, .van-button--primary:active {
+  background: var(--primary-dark) !important;
+}
+
+/* Remove default borders if any */
+.van-button {
+  border: 1px solid transparent;
+}
+.van-button--plain {
+  border-color: #ebedf0;
+}
+
+/* 统一表单字段高度与圆角 */
+:root {
+  --field-height: 44px;
+  --field-radius: 8px;
+}
+
+:root :is(.van-field, .van-cell) {
+  min-height: var(--field-height);
+}
+
+.van-field, .van-cell {
+  border-radius: var(--field-radius);
+}
+
+/* 列表卡片样式 */
+.tu-list-card {
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 8px;
+}
+
+.tu-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  transition: background .2s ease;
+}
+
+.tu-list-item + .tu-list-item { margin-top: 4px; }
+.tu-list-item:hover { background: var(--bg-input); }
+
+.tu-list-icon-bubble {
+  width: 36px; height: 36px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary-color);
+  background: var(--info-light);
+}
+
+.tu-list-title { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+.tu-list-subtitle { font-size: 12px; color: var(--text-secondary); }
+
+.tu-list-right {
+  margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--text-tertiary);
+}
+
+/* 概览卡片（两列） */
+.tu-overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tu-overview-item {
+  border-radius: var(--radius-md); padding: 16px; display: flex; align-items: center; gap: 12px;
+  background: #fff;
+  border: 1px solid var(--border-color);
+}
+
+.tu-overview-icon { 
+  width: 40px; height: 40px; border-radius: 8px; display:flex; align-items:center; justify-content:center; 
+  color: var(--primary-color);
+  background: var(--info-light);
+}
+
+.tu-overview-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.tu-overview-desc { font-size: 12px; color: var(--text-secondary); }
+
+/* 搜索样式 */
+.search-container {
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* 分类网格 */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding: 16px;
+  background: #fff;
+}
+
+.category-item {
+  text-align: center;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s;
+}
+
+.category-item:hover {
+  background-color: var(--bg-input);
+}
+
+.category-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 8px;
+  border-radius: 12px;
+  background: var(--bg-input);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.category-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* 商品卡片样式 */
+.product-card {
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.product-image {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+}
+
+.product-info {
+  padding: 12px;
+}
+
+.product-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #323233;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.product-price {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ee0a24;
+  margin-bottom: 4px;
+}
+
+.product-location {
+  font-size: 12px;
+  color: #969799;
+}
+
+/* 网格布局 */
+.product-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 16px;
+}
+
+/* 列表布局 */
+.product-list {
+  padding: 16px;
+}
+
+.product-list-item {
+  display: flex;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.product-list-image {
+  width: 80px;
+  height: 80px;
+  border-radius: 4px;
+  margin-right: 12px;
+  object-fit: cover;
+}
+
+.product-list-content {
+  flex: 1;
+}
+
+/* 空状态 */
+.empty-state {
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.empty-image {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 16px;
+}
+
+.empty-text {
+  font-size: 14px;
+  color: #969799;
+  margin-bottom: 16px;
+}
+
+/* 加载状态 */
+.loading-container {
+  padding: 20px;
+  text-align: center;
+}
+
+/* 蓝色主题辅助与渐变（与 UnoCSS 一起使用） */
+
+.bg-cover-blue { /* 顶部封面渐变背景 */
+  background: linear-gradient(90deg, #81C784 0%, #4CAF50 50%, #388E3C 100%);
+}
+
+/* 浅色柔和封面背景（替换蓝色时使用） */
+.bg-cover-soft {
+  background: linear-gradient(180deg, #f7fbff 0%, #eef6ff 55%, #eaf9ff 100%);
+}
+
+.shadow-soft-lg { /* 更柔和的大阴影 */
+  box-shadow: 0 8px 28px -10px rgba(0, 0, 0, 0.15);
+}
+
+/* 统一卡片与按钮（与 UnoCSS 共存，提供兜底） */
+.tu-card {
+  background: #fff;
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+  transition: transform .25s var(--ease-standard), box-shadow .25s var(--ease-standard);
+}
+.tu-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .12);
+}
+.btn-primary {
+  color: #fff !important;
+  background-image: linear-gradient(90deg, var(--primary-color), var(--primary-color-2));
+  border: none !important;
+}
+
+/* 统一表单字段高度与圆角（对 Vant 做适配，尽量非侵入） */
+:root {
+  --field-height: 44px;
+  --field-radius: 10px;
+}
+
+:root :is(.van-field, .van-cell) {
+  min-height: var(--field-height);
+}
+
+.van-field, .van-cell {
+  border-radius: var(--field-radius);
+}
+
+/* 次要按钮轻微强化可见性 */
+.van-button--plain {
+  border-color: rgba(0,0,0,0.12);
+}
+
+/* 卖家中心图标泡泡（品牌蓝 + 紫/橙点缀） */
+.tu-bubble-blue { background: var(--accent-blue) !important; }
+.tu-bubble-purple { background: var(--accent-purple) !important; }
+.tu-bubble-orange { background: var(--accent-orange) !important; }
+
+/* 列表卡片样式（拟合截图风格） */
+.tu-list-card {
+  background: rgba(255,255,255,0.6);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(31,41,55,0.06);
+  border-radius: 24px;
+  padding: 8px;
+}
+.tu-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px;
+  border-radius: 18px;
+  transition: background .2s ease;
+}
+.tu-list-item + .tu-list-item { margin-top: 6px; }
+.tu-list-item:hover { background: rgba(255,255,255,0.6); }
+.tu-list-icon-bubble {
+  width: 40px; height: 40px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+}
+.tu-list-title { font-size: 14px; font-weight: 600; color: #1d1d1f; }
+.tu-list-subtitle { font-size: 12px; color: #6b7280; }
+.tu-list-right {
+  margin-left: auto; display: flex; align-items: center; gap: 8px; color: #9ca3af;
+}
+.tu-list-right-bubble {
+  width: 28px; height: 28px; border-radius: 999px; background: rgba(255,255,255,0.7);
+  display: flex; align-items: center; justify-content: center; color: #9ca3af; border: 1px solid rgba(31,41,55,0.06);
+}
+
+/* 概览卡片（两列） */
+.tu-overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.tu-overview-item {
+  border-radius: 20px; padding: 16px; display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.5), rgba(255,255,255,0.3));
+  border: 1px solid rgba(31,41,55,0.06);
+}
+.tu-overview-icon { width: 44px; height: 44px; border-radius: 14px; display:flex; align-items:center; justify-content:center; color: #fff; }
+.tu-overview-title { font-size: 14px; font-weight: 600; color: #1f2937; }
+.tu-overview-desc { font-size: 12px; color: #6b7280; }
+
+/* 搜索样式 */
+.search-container {
+  padding: 16px;
+  background: #fff;
+}
+
+/* 分类网格 */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding: 16px;
+  background: #fff;
+}
+
+.category-item {
+  text-align: center;
+  padding: 12px 8px;
+}
+
+.category-icon {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 8px;
+  border-radius: 20px;
+  background: #f2f3f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-name {
+  font-size: 12px;
+  color: #323233;
+}
+
+/* 交互增强：提升“可点击感”的指针与悬停/按下反馈 */
+.tu-list-item { cursor: pointer; -webkit-user-select: none; user-select: none; }
+.tu-list-item { min-height: 48px; }
+.tu-list-item:active { transform: translateY(1px); }
+
+.tu-overview-item { cursor: pointer; transition: transform .2s ease, box-shadow .2s ease; }
+.tu-overview-item { min-height: 48px; }
+.tu-overview-item:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,0,0,.08); }
+.tu-overview-item:active { transform: translateY(0); }
+
+.tu-seg-btn { cursor: pointer; transition: background .2s ease, box-shadow .2s ease, transform .1s ease; min-height: 40px; }
+.tu-seg-btn:hover { background: rgba(0,0,0,0.04); }
+.tu-seg-btn:active { transform: scale(0.98); }
+
+/* 扩大 Vant 小尺寸按钮的触控高度（不大幅改变视觉尺寸） */
+.van-button--small,
+.van-button--mini {
+  height: 40px;
+  min-height: 40px;
+  line-height: 40px;
+  padding-left: 14px;
+  padding-right: 14px;
+}

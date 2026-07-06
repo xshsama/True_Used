@@ -1,0 +1,67 @@
+groups:
+  - name: trueused-business
+    rules:
+      - alert: TrueUsedBackendDown
+        expr: up{job="trueused-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          domain: platform
+        annotations:
+          summary: TrueUsed backend is down
+          description: Prometheus cannot scrape the backend actuator endpoint for more than 1 minute.
+
+      - alert: TrueUsedHighOrderCommandLatency
+        expr: |
+          (
+            sum by (operation) (rate(trueused_order_command_duration_seconds_sum[5m]))
+            /
+            clamp_min(sum by (operation) (rate(trueused_order_command_duration_seconds_count[5m])), 0.001)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          domain: order
+        annotations:
+          summary: Order command latency is high
+          description: Order command {{ $labels.operation }} average latency is above 2 seconds for 5 minutes.
+
+      - alert: TrueUsedOrderCommandErrors
+        expr: sum by (operation) (increase(trueused_order_command_duration_seconds_count{result="error"}[10m])) > 5
+        for: 2m
+        labels:
+          severity: warning
+          domain: order
+        annotations:
+          summary: Order command errors increased
+          description: Order command {{ $labels.operation }} has more than 5 errors in the last 10 minutes.
+
+      - alert: TrueUsedPendingPaymentBacklog
+        expr: trueused_orders_pending_payment_oldest_age_seconds > 1800
+        for: 5m
+        labels:
+          severity: warning
+          domain: order
+        annotations:
+          summary: Pending payment backlog is aging
+          description: The oldest pending-payment order has been waiting for more than 30 minutes.
+
+      - alert: TrueUsedPendingShipmentBacklog
+        expr: trueused_orders_pending_shipment_oldest_age_seconds > 86400
+        for: 15m
+        labels:
+          severity: warning
+          domain: fulfillment
+        annotations:
+          summary: Pending shipment backlog is aging
+          description: The oldest pending-shipment order has been waiting for more than 24 hours.
+
+      - alert: TrueUsedPaymentCallbackErrors
+        expr: increase(trueused_payment_callback_total{result="error"}[10m]) > 3
+        for: 2m
+        labels:
+          severity: critical
+          domain: payment
+        annotations:
+          summary: Payment callback errors increased
+          description: Payment callback processing has more than 3 errors in the last 10 minutes.

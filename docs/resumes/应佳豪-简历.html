@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>应佳豪-简历</title>
+    <style>
+      :root {
+        --paper: #ffffff;
+        --ink: #1a1a1a;
+        --text: #2c2c2c;
+        --muted: #5f5f5f;
+        --line: #1f1f1f;
+        --screen-bg: #eef1f4;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+        background: var(--screen-bg);
+        color: var(--text);
+        font-family:
+          "Times New Roman",
+          "Songti SC",
+          "STSong",
+          "SimSun",
+          serif;
+      }
+
+      .resume {
+        width: min(210mm, 100%);
+        min-height: 297mm;
+        margin: 0 auto;
+        padding: 14mm 16mm 13mm;
+        background: var(--paper);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 10px;
+      }
+
+      .name {
+        margin: 0;
+        color: var(--ink);
+        font-size: 28px;
+        line-height: 1.1;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+      }
+
+      .contact-line,
+      .basic-line {
+        margin: 4px 0 0;
+        font-size: 12px;
+        line-height: 1.45;
+        color: var(--muted);
+      }
+
+      .section {
+        margin-top: 10px;
+      }
+
+      .section-title {
+        margin: 0 0 6px;
+        padding-bottom: 3px;
+        border-bottom: 1.4px solid var(--line);
+        color: var(--ink);
+        font-size: 15px;
+        line-height: 1.2;
+        font-weight: 700;
+      }
+
+      .entry + .entry {
+        margin-top: 10px;
+      }
+
+      .entry-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .entry-title {
+        margin: 0;
+        color: var(--ink);
+        font-size: 13.5px;
+        line-height: 1.35;
+        font-weight: 700;
+      }
+
+      .entry-date {
+        flex-shrink: 0;
+        margin: 0;
+        color: var(--ink);
+        font-size: 12px;
+        line-height: 1.35;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .entry-sub {
+        margin: 1px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+        font-style: italic;
+      }
+
+      .entry-note,
+      .stack-line,
+      .course-line,
+      .skill-line {
+        margin: 3px 0 0;
+        color: var(--text);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .bullet-list {
+        margin: 4px 0 0;
+        padding-left: 18px;
+      }
+
+      .bullet-list li {
+        margin: 2px 0;
+        color: var(--text);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .compact-list {
+        margin: 4px 0 0;
+        padding-left: 18px;
+      }
+
+      .compact-list li {
+        margin: 2px 0;
+        color: var(--text);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      strong {
+        color: var(--ink);
+      }
+
+      @page {
+        size: A4;
+        margin: 0;
+      }
+
+      @media print {
+        body {
+          padding: 0;
+          background: #fff;
+        }
+
+        .resume {
+          width: 210mm;
+          min-height: 297mm;
+          margin: 0;
+          box-shadow: none;
+        }
+      }
+
+      @media screen and (max-width: 860px) {
+        body {
+          padding: 12px;
+        }
+
+        .resume {
+          min-height: auto;
+          padding: 18px 16px 20px;
+        }
+
+        .entry-head {
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .entry-date {
+          white-space: normal;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="resume">
+      <header class="header">
+        <h1 class="name">应佳豪</h1>
+        <p class="contact-line">
+          15317549768 | 2766988086@qq.com | 求职方向: 后端开发实习生
+        </p>
+        <p class="basic-line">
+          上海电机学院 软件工程本科 | 2027.06 毕业（预计）
+        </p>
+      </header>
+
+      <section class="section">
+        <h2 class="section-title">教育背景</h2>
+        <article class="entry">
+          <div class="entry-head">
+            <p class="entry-title">上海电机学院</p>
+            <p class="entry-date">2023.09 - 2027.06（预计）</p>
+          </div>
+          <p class="entry-sub">软件工程 | 本科</p>
+          <p class="course-line">
+            <strong>主修课程:</strong> Java 程序设计、数据结构与算法、数据库原理、软件工程导论、计算机网络
+          </p>
+          <p class="course-line">
+            <strong>相关方向:</strong> Java 后端开发、数据库应用、接口设计、软件工程实践
+          </p>
+        </article>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">项目经历</h2>
+        <article class="entry">
+          <div class="entry-head">
+            <p class="entry-title">TrueUsed 二手交易平台 | 个人项目</p>
+            <p class="entry-date">2025.09 - 2025.11</p>
+          </div>
+          <p class="stack-line">
+            <strong>技术栈:</strong> Spring Boot / Spring Security / JWT / JPA / MySQL / Redis / WebSocket / Vue 3
+          </p>
+          <p class="entry-note">
+            <strong>项目简介:</strong> 面向高校二手交易场景构建前后端分离平台，覆盖商品发布、即时沟通、订单支付、履约交付与售后退款等核心流程。
+          </p>
+          <p class="entry-note">
+            <strong>模块覆盖:</strong> 已实现用户认证、商品管理、订单交易、钱包支付、消息通知、退款售后等主要业务模块。
+          </p>
+          <p class="entry-note">
+            <strong>个人职责:</strong> 负责后端核心业务模块设计与开发，完成认证鉴权、订单流转、支付回调、消息通知等关键能力实现。
+          </p>
+          <ul class="bullet-list">
+            <li>完成登录注册与 JWT 鉴权流程，结合 Spring Security 实现接口级访问控制，并支持前后端分离场景联调。</li>
+            <li>围绕商品、订单、支付与退款场景设计核心接口，打通下单、支付、发货、确认收货等交易流程。</li>
+            <li>引入状态机约束订单状态迁移，并在钱包交易与支付回调中加入幂等控制，降低重复请求带来的状态错乱风险。</li>
+            <li>基于 WebSocket 实现会话与系统通知推送，结合 Redis 缓存商品热点数据，优化高频访问场景响应。</li>
+            <li>围绕用户、商品、订单、钱包流水、退款记录等对象设计核心数据表结构，梳理实体关系与关键字段约束，支撑交易流程落地。</li>
+            <li>统一封装接口返回结构与异常处理逻辑，便于前后端联调与问题排查，提高接口使用一致性。</li>
+          </ul>
+        </article>
+
+        <article class="entry">
+          <div class="entry-head">
+            <p class="entry-title">Learning Tracker 学习任务追踪系统 | 个人项目</p>
+            <p class="entry-date">2025.05 - 2025.06</p>
+          </div>
+          <p class="stack-line">
+            <strong>技术栈:</strong> Spring Boot / JPA / MySQL 
+          </p>
+          <p class="entry-note">
+            <strong>项目简介:</strong> 面向个人学习管理场景设计任务追踪系统，围绕学科、目标与任务拆解学习过程，并支持阶段性学习情况统计。
+          </p>
+          <p class="entry-note">
+            <strong>核心流程:</strong> 用户注册登录 -> 创建学科 -> 拆解学习目标 -> 创建任务 -> 查看今日任务与阶段报告。
+          </p>
+          <p class="entry-note">
+            <strong>个人职责:</strong> 独立完成后端接口设计、实体建模与学习报告相关功能实现。
+          </p>
+          <ul class="bullet-list">
+            <li>基于 Subject-Goal-Task 分层模型设计学习数据结构，完成学科、目标、任务等核心实体的关系建模与 JPA 持久化实现。</li>
+            <li>完成学习任务管理相关接口开发，支持学科、目标、任务等基础数据的新增、查询与维护。</li>
+            <li>开发学习报告模块，按时间范围统计任务完成情况、目标推进进度与学科维度分布，支持查看阶段性学习状态。</li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">技术技能</h2>
+        <p class="skill-line">
+          <strong>后端开发:</strong> Java、Spring Boot、Spring Security、JPA、RESTful API、JWT、WebSocket
+        </p>
+        <p class="skill-line">
+          <strong>数据库/中间件:</strong> MySQL、Redis
+        </p>
+        <p class="skill-line">
+          <strong>工程工具:</strong> Maven、Git
+        </p>
+        <p class="skill-line">
+          <strong>开发工具:</strong> VSCode、Navicat、Postman
+        </p>
+        <ul class="compact-list">
+          <li>具备 Java Web 后端项目开发经验，能够基于 Spring Boot、JPA、MySQL 完成接口设计、数据持久化、权限控制与基础联调。</li>
+          <li>了解 MySQL 常见表结构设计与基础查询优化，具备 Redis 缓存的基本使用经验。</li>
+          <li>具备基于 Git 进行版本管理的基础经验，能够使用 Maven 完成项目构建与依赖管理。</li>
+        </ul>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">补充信息</h2>
+        <ul class="compact-list">
+          <li><strong>语言能力:</strong> 通过 CET-4、CET-6，具备英文技术文档基础阅读能力。</li>
+          <li><strong>技术方向:</strong> 持续学习 Java 后端开发相关知识，关注认证鉴权、订单流转、缓存与消息通知等常见业务场景。</li>
+          <li><strong>问题排查:</strong> 能结合接口响应、日志信息、数据库数据进行基础功能调试与问题定位。</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,152 @@
+name: trueused
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: trueused-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-trueused-root}
+      MYSQL_DATABASE: trueused
+      MYSQL_USER: trueused
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-trueused}
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - trueused-network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: trueused-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - trueused-network
+
+  # Spring Boot 后端
+  backend:
+    build:
+      context: ../../TrueUsed
+      dockerfile: Dockerfile
+    container_name: trueused-backend
+    ports:
+      - '8081:8081'
+    environment:
+      SERVER_PORT: 8081
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/trueused
+      SPRING_DATASOURCE_USERNAME: trueused
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-trueused}
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: 20
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: 5
+      SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT: 30000
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-change-me-change-me-change-me}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-demo}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-demo}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-demo}
+      ALIPAY_APP_ID: ${ALIPAY_APP_ID:-demo}
+      ALIPAY_PRIVATE_KEY: ${ALIPAY_PRIVATE_KEY:-demo}
+      ALIPAY_PUBLIC_KEY: ${ALIPAY_PUBLIC_KEY:-demo}
+      ALIPAY_NOTIFY_URL: ${ALIPAY_NOTIFY_URL:-http://localhost:8081/api/alipay/notify}
+      ALIPAY_RETURN_URL: ${ALIPAY_RETURN_URL:-http://localhost/payment/success}
+      MANAGEMENT_HEALTH_SHOW_DETAILS: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - trueused-network
+    restart: unless-stopped
+
+  # Prometheus 指标采集
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: trueused-prometheus
+    ports:
+      - '9090:9090'
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - backend
+    networks:
+      - trueused-network
+    restart: unless-stopped
+
+  # Grafana 可视化
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: trueused-grafana
+    ports:
+      - '3000:3000'
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_DEFAULT_THEME: dark
+      GF_USERS_DEFAULT_LANGUAGE: zh-Hans
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - trueused-network
+    restart: unless-stopped
+
+  # k6 业务链路压测
+  k6:
+    image: grafana/k6:0.54.0
+    container_name: trueused-k6
+    profiles:
+      - loadtest
+    environment:
+      BASE_URL: http://backend:8081
+    volumes:
+      - ../k6:/scripts:ro
+    depends_on:
+      - backend
+    networks:
+      - trueused-network
+    command: ['run', '/scripts/business-flow.js']
+
+  # Vue 前端
+  frontend:
+    build:
+      context: ../../TrueUsed-web
+      dockerfile: Dockerfile
+    container_name: trueused-frontend
+    ports:
+      - '80:80'
+    depends_on:
+      - backend
+    networks:
+      - trueused-network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  trueused-network:
+    driver: bridge

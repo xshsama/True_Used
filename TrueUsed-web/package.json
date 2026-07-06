@@ -1,0 +1,30 @@
+{
+  "name": "trueused-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@stomp/stompjs": "^7.2.1",
+    "@vant/area-data": "^2.1.0",
+    "axios": "^1.7.2",
+    "chart.js": "^4.5.1",
+    "lucide": "^0.561.0",
+    "lucide-vue-next": "^0.556.0",
+    "pinia": "^2.1.7",
+    "socketjs-client": "^1.0.2",
+    "sockjs-client": "^1.6.1",
+    "vant": "^4.9.0",
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.2",
+    "unocss": "^66.5.9",
+    "vite": "^7.2.4"
+  }
+}
