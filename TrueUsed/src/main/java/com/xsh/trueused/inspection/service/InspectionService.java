@@ -509,8 +509,7 @@ public class InspectionService {
             self.updateInspectionStatus(inspectionId, "COMPLETED");
             
             // Generate Smart Summary (Chinese)
-            Inspection updatedInspection = inspectionRepository.findById(inspectionId).orElseThrow();
-            String smartSummary = generateSmartSummary(updatedInspection);
+            String smartSummary = self.generateSmartSummary(inspectionId);
             self.updateInspectionSummary(inspectionId, smartSummary);
             
             log.info("Inspection simulation completed for inspection: {}", inspectionId);
@@ -584,6 +583,12 @@ public class InspectionService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public String generateSmartSummary(Long inspectionId) {
+        Inspection inspection = inspectionRepository.findById(inspectionId).orElseThrow();
+        return generateSmartSummary(inspection);
+    }
+
     @Transactional
     public void updateInspectionStatus(Long inspectionId, String status) {
         Inspection inspection = inspectionRepository.findById(inspectionId).orElseThrow();
@@ -647,12 +652,13 @@ public class InspectionService {
         consignment.setStatus(ConsignmentStatus.PASSED);
         consignmentRepository.save(consignment);
 
-        if (consignment.getProduct() != null) {
+        Optional<Long> productId = consignmentRepository.findProductIdById(consignmentId);
+        if (productId.isPresent()) {
             inspectionRepository.findByConsignmentId(consignmentId)
                     .ifPresent(inspection -> productService.updateInspectionGrade(
-                            consignment.getProduct().getId(),
+                            productId.get(),
                             determineGrade(inspection)));
-            productService.updateProductStatus(consignment.getProduct().getId(), ProductStatus.ON_SALE);
+            productService.updateProductStatus(productId.get(), ProductStatus.ON_SALE);
         }
     }
 
@@ -662,10 +668,10 @@ public class InspectionService {
         consignment.setStatus(ConsignmentStatus.REJECTED);
         consignmentRepository.save(consignment);
 
-        if (consignment.getProduct() != null) {
-            productService.updateInspectionGrade(consignment.getProduct().getId(), "X");
-            productService.updateProductStatus(consignment.getProduct().getId(), ProductStatus.OFF_SHELF);
-        }
+        consignmentRepository.findProductIdById(consignmentId).ifPresent(productId -> {
+            productService.updateInspectionGrade(productId, "X");
+            productService.updateProductStatus(productId, ProductStatus.OFF_SHELF);
+        });
     }
 
     private String getRandomNote(String itemName) {

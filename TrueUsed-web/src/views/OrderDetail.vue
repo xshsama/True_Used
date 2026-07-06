@@ -5,7 +5,7 @@ import { resolveAvatar } from '@/utils/avatar';
 import { normalizeProductTrade } from '@/utils/productTrade';
 import { Check, Copy, FileCheck2, MapPin, PackageSearch, Store, Truck } from 'lucide-vue-next';
 import { showConfirmDialog, showFailToast, showSuccessToast } from 'vant';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
@@ -15,6 +15,7 @@ const userStore = useUserStore();
 const loading = ref(true);
 const order = ref(null);
 const shippingInfo = ref(null);
+const shippingPollTimer = ref(null);
 
 const SHIPPING_STATUS_LABELS = {
     PENDING: '待揽收',
@@ -172,20 +173,58 @@ const getActionErrorMessage = (error, fallback) => {
     return error?.response?.data?.message || error?.message || fallback;
 };
 
+const clearShippingPolling = () => {
+    if (shippingPollTimer.value) {
+        window.clearInterval(shippingPollTimer.value);
+        shippingPollTimer.value = null;
+    }
+};
+
+const refreshShippingInfo = async () => {
+    if (!order.value?.id || !order.value?.trackingNumber) {
+        shippingInfo.value = null;
+        return;
+    }
+    shippingInfo.value = await getOrderShipping(order.value.id);
+};
+
+const shouldPollShipping = () => (
+    order.value?.status === 'SHIPPED' &&
+    Boolean(order.value?.trackingNumber) &&
+    shippingInfo.value?.shippingStatus !== 'DELIVERED'
+);
+
+const startShippingPolling = () => {
+    clearShippingPolling();
+    if (!shouldPollShipping()) return;
+    shippingPollTimer.value = window.setInterval(async () => {
+        try {
+            await refreshShippingInfo();
+            if (!shouldPollShipping()) {
+                clearShippingPolling();
+            }
+        } catch (error) {
+            console.error('Shipping polling error', error);
+        }
+    }, 10000);
+};
+
 const loadOrder = async () => {
     const orderId = route.params.id;
     try {
         loading.value = true;
+        clearShippingPolling();
         shippingInfo.value = null;
         order.value = await getOrderById(orderId);
 
         if (order.value?.trackingNumber) {
             try {
-                shippingInfo.value = await getOrderShipping(orderId);
+                await refreshShippingInfo();
             } catch (error) {
                 console.error('Shipping info error', error);
             }
         }
+        startShippingPolling();
     } catch (error) {
         showFailToast('加载订单详情失败');
     } finally {
@@ -267,6 +306,10 @@ const viewInspectionReport = () => {
 
 onMounted(() => {
     loadOrder();
+});
+
+onBeforeUnmount(() => {
+    clearShippingPolling();
 });
 </script>
 

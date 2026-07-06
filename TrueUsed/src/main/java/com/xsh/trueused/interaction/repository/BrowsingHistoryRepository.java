@@ -14,6 +14,16 @@ import com.xsh.trueused.enums.ProductStatus;
 public interface BrowsingHistoryRepository extends JpaRepository<BrowsingHistory, Long> {
     Page<BrowsingHistory> findByUserIdOrderByViewedAtDesc(Long userId, Pageable pageable);
 
+    @Query("""
+            SELECT bh
+            FROM BrowsingHistory bh
+            WHERE bh.user.id = :userId
+              AND bh.product.seller.id <> :userId
+              AND bh.product.status = :status
+            ORDER BY bh.viewedAt DESC
+            """)
+    Page<BrowsingHistory> findVisibleByUserId(Long userId, ProductStatus status, Pageable pageable);
+
     // Optional: Find existing record to update timestamp instead of creating new
     // one
     BrowsingHistory findByUserIdAndProductId(Long userId, Long productId);

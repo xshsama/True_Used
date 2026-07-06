@@ -1,13 +1,14 @@
 <script setup>
 import SearchBar from '@/components/SearchBar.vue';
+import { getProduct } from '@/api/products';
 import { useMessageStore } from '@/stores/message';
 import { useUserStore } from '@/stores/user';
 import { resolveAvatar } from '@/utils/avatar';
+import { normalizeProductTrade } from '@/utils/productTrade';
 import {
     Bell,
     Clock3,
     MessageSquare,
-    Phone,
     Search,
     Send,
     ShieldCheck,
@@ -27,6 +28,8 @@ const inputText = ref('');
 const searchKeyword = ref('');
 const messagesContainer = ref(null);
 const activeChatId = ref(null);
+const linkedProduct = ref(null);
+const linkedProductLoading = ref(false);
 
 const quickReplies = ['还在吗？', '支持平台验货吗？', '什么时候可以发货？', '成色细节能再拍一下吗？', '价格还有空间吗？'];
 
@@ -76,6 +79,27 @@ const activeChat = computed(() => {
     return chatList.value.find(chat => chat.id === activeChatId.value) || null;
 });
 
+const linkedProductSummary = computed(() => {
+    if (!linkedProduct.value) return null;
+
+    const trade = normalizeProductTrade(linkedProduct.value);
+    const image = linkedProduct.value.images?.[0]?.url || linkedProduct.value.imageUrl || linkedProduct.value.coverUrl || '';
+    const price = Number(linkedProduct.value.price || 0);
+
+    return {
+        id: linkedProduct.value.id,
+        title: linkedProduct.value.title || '未命名商品',
+        image: image || 'https://via.placeholder.com/320x240/111827/ffffff?text=TrueUsed',
+        priceText: price > 0 ? `¥${price.toLocaleString('zh-CN')}` : '价格待定',
+        tradeLabel: trade.tradeModeLabel,
+        conditionLabel: trade.primaryConditionLabel,
+        statusLabel: trade.saleStatusLabel || '状态待同步',
+        riskNote: trade.hasPlatformInspection
+            ? (trade.inspectionStatus === 'passed' ? '平台验货已完成，可按报告核对细节' : '平台验货链路未完成，先确认上架状态')
+            : '卖家自出商品，重点确认成色、发货和售后边界'
+    };
+});
+
 const unreadConversationCount = computed(() => {
     return chatList.value.filter(chat => chat.unread > 0).length;
 });
@@ -108,8 +132,27 @@ const conversationSignals = computed(() => {
     if (!activeChat.value) {
         return [
             { label: '当前状态', value: '未选会话', note: '从左侧选择联系人后开始沟通' },
-            { label: '交易模式', value: '待识别', note: '这里预留给商品上下文或验货状态' },
             { label: '风险提示', value: '先看成色', note: '卖家自出和平台验货要分开判断' }
+        ];
+    }
+
+    if (linkedProductSummary.value) {
+        return [
+            {
+                label: '当前状态',
+                value: activeChat.value.online ? '在线沟通' : '等待回复',
+                note: activeChat.value.unread ? `还有 ${activeChat.value.unread} 条未读` : '本会话暂无未读'
+            },
+            {
+                label: '交易模式',
+                value: linkedProductSummary.value.tradeLabel,
+                note: `${linkedProductSummary.value.conditionLabel} · ${linkedProductSummary.value.statusLabel}`
+            },
+            {
+                label: '风险提示',
+                value: linkedProductSummary.value.tradeLabel === '平台验货' ? '核对报告' : '确认成色',
+                note: linkedProductSummary.value.riskNote
+            }
         ];
     }
 
@@ -118,11 +161,6 @@ const conversationSignals = computed(() => {
             label: '当前状态',
             value: activeChat.value.online ? '在线沟通' : '等待回复',
             note: activeChat.value.unread ? `还有 ${activeChat.value.unread} 条未读` : '本会话暂无未读'
-        },
-        {
-            label: '交易模式',
-            value: '待确认',
-            note: '当前会话未绑定真实商品，先展示桌面侧栏占位信息'
         },
         {
             label: '风险提示',
@@ -151,6 +189,43 @@ function scrollToBottom() {
             messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
         }
     });
+}
+
+function routeProductId() {
+    const raw = route.query.productId;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+async function loadLinkedProduct() {
+    const productId = routeProductId();
+
+    if (!productId) {
+        linkedProduct.value = null;
+        return;
+    }
+
+    try {
+        linkedProductLoading.value = true;
+        linkedProduct.value = await getProduct(productId);
+    } catch (error) {
+        console.error('Failed to load linked product', error);
+        linkedProduct.value = null;
+    } finally {
+        linkedProductLoading.value = false;
+    }
+}
+
+function openLinkedProduct() {
+    if (!linkedProductSummary.value?.id) return;
+    router.push({ name: 'ProductDetail', params: { id: linkedProductSummary.value.id } });
+}
+
+function openUserProfile(userId) {
+    const id = Number(userId);
+    if (!Number.isInteger(id) || id <= 0) return;
+    router.push({ name: 'SellerProfile', params: { id } });
 }
 
 async function handleSend() {
@@ -213,6 +288,10 @@ watch(() => route.params.id, () => {
     syncConversationFromRoute();
 });
 
+watch(() => route.query.productId, () => {
+    loadLinkedProduct();
+});
+
 watch(() => chatList.value.length, () => {
     syncConversationFromRoute();
 });
@@ -223,7 +302,10 @@ watch(() => messageStore.messages.length, () => {
 
 onMounted(async () => {
     messageStore.connect();
-    await messageStore.fetchConversations();
+    await Promise.all([
+        messageStore.fetchConversations(),
+        loadLinkedProduct()
+    ]);
     await syncConversationFromRoute();
 });
 
@@ -301,9 +383,10 @@ onUnmounted(() => {
                                 ? 'bg-emerald-50 shadow-[0_14px_28px_rgba(16,185,129,0.10)]'
                                 : 'hover:bg-slate-50'"
                             @click="openConversation(chat)">
-                            <div class="relative">
+                            <div class="relative cursor-pointer" @click.stop="openUserProfile(chat.otherUserId)">
                                 <img :src="chat.avatar"
-                                    class="h-14 w-14 rounded-2xl border border-slate-100 object-cover shadow-sm" />
+                                    class="h-14 w-14 rounded-2xl border border-slate-100 object-cover shadow-sm transition-transform hover:scale-[1.03]"
+                                    :alt="`${chat.name}的头像`" />
                                 <span v-if="chat.online"
                                     class="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500"></span>
                             </div>
@@ -347,12 +430,14 @@ onUnmounted(() => {
                         <div class="border-b border-slate-100 px-6 py-5">
                             <div class="flex items-center justify-between gap-5">
                                 <div class="flex items-center gap-4">
-                                    <div class="relative">
+                                    <button type="button" class="relative cursor-pointer"
+                                        @click="openUserProfile(activeChat.otherUserId)">
                                         <img :src="activeChat.avatar"
-                                            class="h-14 w-14 rounded-2xl border border-slate-100 object-cover shadow-sm" />
+                                            class="h-14 w-14 rounded-2xl border border-slate-100 object-cover shadow-sm transition-transform hover:scale-[1.03]"
+                                            :alt="`${activeChat.name}的头像`" />
                                         <span v-if="activeChat.online"
                                             class="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500"></span>
-                                    </div>
+                                    </button>
                                     <div>
                                         <div class="flex items-center gap-3">
                                             <h2 class="text-2xl font-black text-slate-950">{{ activeChat.name }}</h2>
@@ -372,13 +457,8 @@ onUnmounted(() => {
                                     </div>
                                 </div>
 
-                                <div class="flex items-center gap-3">
-                                    <button type="button"
-                                        class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-emerald-200 hover:text-emerald-700">
-                                        <Phone :size="16" />
-                                        语音协商
-                                    </button>
-                                    <button type="button"
+                                <div v-if="linkedProductSummary" class="flex items-center gap-3">
+                                    <button type="button" @click="openLinkedProduct"
                                         class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-emerald-200 hover:text-emerald-700">
                                         <Store :size="16" />
                                         打开商品
@@ -390,15 +470,19 @@ onUnmounted(() => {
                         <div ref="messagesContainer" class="flex-1 space-y-5 overflow-y-auto bg-slate-50 px-6 py-6">
                             <div
                                 class="mx-auto max-w-max rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700">
-                                建议先确认成色描述，再判断是否需要走平台验货流程。
+                                {{ linkedProductSummary ? `当前沟通商品：${linkedProductSummary.title}` : '建议先确认成色描述，再判断是否需要走平台验货流程。' }}
                             </div>
 
                             <div v-for="message in messages" :key="message.id"
                                 class="flex gap-3"
                                 :class="message.type === 'me' ? 'justify-end' : 'justify-start'">
                                 <template v-if="message.type !== 'me'">
-                                    <img :src="activeChat.avatar"
-                                        class="h-10 w-10 rounded-full border border-white object-cover shadow-sm" />
+                                    <button type="button" class="h-10 w-10 shrink-0 rounded-full"
+                                        @click="openUserProfile(activeChat.otherUserId)">
+                                        <img :src="activeChat.avatar"
+                                            class="h-10 w-10 rounded-full border border-white object-cover shadow-sm transition-transform hover:scale-[1.05]"
+                                            :alt="`${activeChat.name}的头像`" />
+                                    </button>
                                 </template>
 
                                 <div class="max-w-[68%]">
@@ -480,18 +564,38 @@ onUnmounted(() => {
                         </div>
                         <h2 class="mt-3 text-2xl font-black text-slate-950">交易侧栏</h2>
                         <div class="mt-2 text-sm leading-7 text-slate-500">
-                            这里为桌面端预留商品上下文、验货提醒和快捷话术，不再把这些信息都挤在聊天头部。
+                            关联商品、验货状态和快捷话术集中展示。
                         </div>
                     </div>
 
                     <div class="space-y-4 px-5 py-5">
-                        <div class="rounded-[24px] bg-slate-950 p-5 text-white">
+                        <div v-if="linkedProductSummary" class="rounded-[24px] bg-slate-950 p-5 text-white">
+                            <div class="text-xs uppercase tracking-[0.18em] text-white/55">关联商品</div>
+                            <div class="mt-4 flex gap-3">
+                                <img :src="linkedProductSummary.image"
+                                    class="h-16 w-16 rounded-2xl border border-white/10 object-cover" />
+                                <div class="min-w-0 flex-1">
+                                    <div class="line-clamp-2 text-sm font-bold leading-6">{{ linkedProductSummary.title }}</div>
+                                    <div class="mt-1 text-2xl font-black">{{ linkedProductSummary.priceText }}</div>
+                                    <div class="mt-1 text-xs text-white/58">
+                                        {{ linkedProductSummary.tradeLabel }} · {{ linkedProductSummary.statusLabel }}
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" @click="openLinkedProduct"
+                                class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/15">
+                                <Store :size="16" />
+                                打开商品
+                            </button>
+                        </div>
+
+                        <div v-else class="rounded-[24px] bg-slate-950 p-5 text-white">
                             <div class="text-xs uppercase tracking-[0.18em] text-white/55">当前联系人</div>
                             <div class="mt-2 text-2xl font-black">
                                 {{ activeChat?.name || '未选择会话' }}
                             </div>
                             <div class="mt-2 text-sm text-white/68">
-                                {{ activeChat ? `最近消息：${activeChat.lastMessage}` : '左侧选中会话后，这里会展示对话摘要。' }}
+                                {{ linkedProductLoading ? '正在加载商品上下文...' : (activeChat ? `最近消息：${activeChat.lastMessage}` : '左侧选中会话后，这里会展示对话摘要。') }}
                             </div>
                         </div>
 

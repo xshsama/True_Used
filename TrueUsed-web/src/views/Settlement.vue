@@ -55,7 +55,7 @@ const freight = computed(() => deliveryType.value === 'express' ? 0 : 0);
 
 const validCoupons = computed(() => {
     const price = Number(product.value.price) || 0;
-    return coupons.value.filter(c => !c.isUsed && c.coupon.minSpend <= price);
+    return coupons.value.filter(c => isUsableOrderCoupon(c, price));
 });
 
 const finalPrice = computed(() => {
@@ -67,7 +67,7 @@ const finalPrice = computed(() => {
 });
 
 const savedAmount = computed(() => {
-    return selectedCoupon.value ? selectedCoupon.value.coupon.discountAmount : 0;
+    return selectedCoupon.value ? Number(selectedCoupon.value.coupon.discountAmount || 0) : 0;
 });
 
 const isOfficialTrade = computed(() => product.value.hasPlatformInspection);
@@ -83,6 +83,18 @@ const deliveryHint = computed(() => {
 const formatPhone = (phone) => {
     if (!phone) return '';
     return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2');
+};
+
+const isUsableOrderCoupon = (userCoupon, price) => {
+    if (!userCoupon || userCoupon.isUsed || userCoupon.coupon?.type !== 'DISCOUNT') {
+        return false;
+    }
+
+    if (userCoupon.validUntil && new Date(userCoupon.validUntil).getTime() <= Date.now()) {
+        return false;
+    }
+
+    return Number(userCoupon.coupon.minSpend || 0) <= price;
 };
 
 const loadData = async () => {
@@ -150,10 +162,10 @@ const loadData = async () => {
 
         // Auto-select best coupon
         const price = Number(product.value.price) || 0;
-        const valid = coupons.value.filter(c => !c.isUsed && c.coupon.minSpend <= price);
+        const valid = coupons.value.filter(c => isUsableOrderCoupon(c, price));
         if (valid.length > 0) {
             // Sort by discount amount desc
-            valid.sort((a, b) => b.coupon.discountAmount - a.coupon.discountAmount);
+            valid.sort((a, b) => Number(b.coupon.discountAmount || 0) - Number(a.coupon.discountAmount || 0));
             selectedCoupon.value = valid[0];
         }
 

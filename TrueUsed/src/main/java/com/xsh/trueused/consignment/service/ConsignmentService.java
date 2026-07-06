@@ -197,7 +197,9 @@ public class ConsignmentService {
                     c.getSeller().getLocation(),
                     c.getSeller().getCreatedAt(),
                     0, // sellingCount placeholder
-                    0 // soldCount placeholder
+                    0, // soldCount placeholder
+                    0L,
+                    false
             );
             dto.setSeller(userDto);
         }

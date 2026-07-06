@@ -76,13 +76,16 @@
                     </div>
 
                     <div class="flex gap-2">
-                        <button @click="handleFollow"
-                            class="flex-1 bg-[#2c3e50] hover:bg-[#1a252f] text-white py-2 rounded-xl text-sm font-bold shadow-md transition-colors flex items-center justify-center gap-2">
-                            <Plus :size="16" /> 关注
+                        <button @click="handleFollow" :disabled="followSubmitting || isOwnProfile"
+                            :class="['flex-1 py-2 rounded-xl text-sm font-bold shadow-md transition-colors flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60', following ? 'border border-[#2c3e50] bg-white text-[#2c3e50] hover:bg-gray-50' : 'bg-[#2c3e50] hover:bg-[#1a252f] text-white']">
+                            <Check v-if="following" :size="16" />
+                            <Plus v-else :size="16" />
+                            {{ isOwnProfile ? '本人' : (followSubmitting ? '处理中' : (following ? '已关注' : '关注')) }}
                         </button>
-                        <button
-                            class="flex-1 border border-gray-200 hover:border-[#4a8b6e] hover:text-[#4a8b6e] text-gray-600 py-2 rounded-xl text-sm font-bold transition-colors">
-                            私信
+                        <button @click="handleMessage" :disabled="messageStarting || isOwnProfile"
+                            class="flex-1 border border-gray-200 hover:border-[#4a8b6e] hover:text-[#4a8b6e] text-gray-600 py-2 rounded-xl text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2">
+                            <MessageCircle :size="16" />
+                            {{ messageStarting ? '进入中' : '私信' }}
                         </button>
                     </div>
                 </div>
@@ -252,13 +255,19 @@
 </template>
 
 <script setup>
+import { createConversation } from '@/api/chat';
 import { createSellerComment, getSellerComments, getSellerReviews } from '@/api/reviews';
+import { followUser, unfollowUser } from '@/api/users';
+import { useAuth } from '@/composables/useAuth';
+import { useUserStore } from '@/stores/user';
 import request from '@/utils/request';
 import { resolveAvatar } from '@/utils/avatar';
 import {
     Award,
+    Check,
     Clock,
     MapPin,
+    MessageCircle,
     PackageOpen,
     Plus,
     ShieldCheck,
@@ -271,9 +280,14 @@ import { useRoute, useRouter } from 'vue-router';
 const route = useRoute();
 const router = useRouter();
 const sellerId = route.params.id;
+const userStore = useUserStore();
+const { requireLogin } = useAuth();
 
 const activeTab = ref('goods');
 const loading = ref(false);
+const following = ref(false);
+const followSubmitting = ref(false);
+const messageStarting = ref(false);
 
 const seller = ref({
     name: '加载中...',
@@ -304,6 +318,9 @@ const tabs = computed(() => [
     { label: '已售记录', value: 'sold', count: seller.value.stats.sold },
 ]);
 
+const targetUserId = computed(() => Number(sellerId));
+const isOwnProfile = computed(() => Number(userStore.user?.id) === targetUserId.value);
+
 const loadSellerInfo = async () => {
     loading.value = true;
     try {
@@ -321,9 +338,10 @@ const loadSellerInfo = async () => {
             stats: {
                 selling: profileRes.sellingCount || 0,
                 sold: profileRes.soldCount || 0,
-                followers: 0 // API暂无
+                followers: profileRes.followerCount || 0
             }
         };
+        following.value = Boolean(profileRes.following);
 
         // 2. 获取在售商品
         const productsRes = await request.get('/products', {
@@ -406,8 +424,53 @@ const isNewProduct = (dateStr) => {
     return diffDays <= 3;
 };
 
-const handleFollow = () => {
-    showSuccessToast('关注成功');
+const handleFollow = async () => {
+    if (isOwnProfile.value) {
+        showFailToast('不能关注自己');
+        return;
+    }
+
+    const loggedIn = await requireLogin({ message: '关注卖家需要登录，是否立即登录？' });
+    if (!loggedIn) return;
+
+    try {
+        followSubmitting.value = true;
+        const res = following.value
+            ? await unfollowUser(targetUserId.value)
+            : await followUser(targetUserId.value);
+
+        following.value = Boolean(res.following);
+        seller.value.stats.followers = res.followerCount ?? seller.value.stats.followers;
+        showSuccessToast(following.value ? '已关注' : '已取消关注');
+    } catch (e) {
+        showFailToast('关注操作失败');
+    } finally {
+        followSubmitting.value = false;
+    }
+};
+
+const handleMessage = async () => {
+    if (isOwnProfile.value) {
+        showFailToast('不能给自己发私信');
+        return;
+    }
+
+    const loggedIn = await requireLogin({ message: '私信卖家需要登录，是否立即登录？' });
+    if (!loggedIn) return;
+
+    try {
+        messageStarting.value = true;
+        const res = await createConversation(targetUserId.value);
+        if (!res?.id) {
+            showFailToast('无法启动会话');
+            return;
+        }
+        router.push(`/messages/chat/${res.id}`);
+    } catch (e) {
+        showFailToast('启动会话失败');
+    } finally {
+        messageStarting.value = false;
+    }
 };
 
 const previewReviewImage = (images, index) => {

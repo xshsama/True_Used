@@ -88,7 +88,10 @@ public class CommentService {
                                 comment.getUser().getCoverImage(),
                                 comment.getUser().getLocation(),
                                 comment.getUser().getCreatedAt(),
-                                0, 0 // Stats not needed here
+                                0,
+                                0,
+                                0L,
+                                false
                 );
 
                 List<CommentDTO> replies = comment.getReplies().stream()

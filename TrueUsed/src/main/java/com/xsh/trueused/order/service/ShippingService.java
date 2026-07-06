@@ -1,5 +1,6 @@
 package com.xsh.trueused.order.service;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -20,7 +21,15 @@ import com.xsh.trueused.entity.Address;
 @Service
 public class ShippingService {
 
+    private static final long PICKED_AFTER_SECONDS = 10;
+    private static final long DEPARTED_AFTER_SECONDS = 20;
+    private static final long TRANSIT_AFTER_SECONDS = 40;
+    private static final long DELIVERING_AFTER_SECONDS = 60;
+    private static final long DELIVERY_STATION_AFTER_SECONDS = 80;
+    private static final long DELIVERED_AFTER_SECONDS = 120;
+
     private final Random random = new Random();
+    private final Clock clock;
 
     // 模拟的物流数据存储（实际项目中应该存入数据库）
     private final Map<String, ShippingInfoDTO> shippingCache = new ConcurrentHashMap<>();
@@ -48,6 +57,14 @@ public class ShippingService {
     private static final String[] TRANSIT_HUBS = {
             "分拨中心", "转运中心", "集散中心", "配送站", "营业部"
     };
+
+    public ShippingService() {
+        this(Clock.systemUTC());
+    }
+
+    ShippingService(Clock clock) {
+        this.clock = clock;
+    }
 
     /**
      * 物流路线信息
@@ -86,7 +103,7 @@ public class ShippingService {
         }
 
         String expressCode = EXPRESS_COMPANIES.getOrDefault(expressCompany, "OTHER");
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
 
         // 获取收件城市信息
         String receiverCity = receiverAddress != null ? receiverAddress.getCity() : "收货地";
@@ -109,9 +126,7 @@ public class ShippingService {
                 .status("PENDING")
                 .build());
 
-        // 预计送达时间（2-5天后）
-        int deliveryDays = 2 + random.nextInt(4);
-        Instant estimatedDelivery = now.plus(deliveryDays, ChronoUnit.DAYS);
+        Instant estimatedDelivery = now.plus(DELIVERED_AFTER_SECONDS, ChronoUnit.SECONDS);
 
         ShippingInfoDTO shippingInfo = ShippingInfoDTO.builder()
                 .shipmentType(shipmentType)
@@ -172,9 +187,8 @@ public class ShippingService {
                 .status("PENDING")
                 .build());
 
-        // 预计送达时间（基于发货时间推算）
-        // 为了保持一致性，这里简单假设为发货后3天
-        Instant estimatedDelivery = shippedAt.plus(3, ChronoUnit.DAYS);
+        // 预计送达时间随 mock 时间线压缩，避免演示环境长期停在运输中。
+        Instant estimatedDelivery = shippedAt.plus(DELIVERED_AFTER_SECONDS, ChronoUnit.SECONDS);
 
         ShippingInfoDTO shippingInfo = ShippingInfoDTO.builder()
                 .shipmentType(shipmentType)
@@ -246,9 +260,9 @@ public class ShippingService {
             return info;
         }
 
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         Instant shippedAt = info.getShippedAt();
-        long hoursElapsed = ChronoUnit.HOURS.between(shippedAt, now);
+        long secondsElapsed = ChronoUnit.SECONDS.between(shippedAt, now);
 
         List<TrackingEvent> events = info.getTrackingEvents() == null
                 ? new ArrayList<>()
@@ -263,10 +277,10 @@ public class ShippingService {
         String transitCity = getTransitCity(senderCity, receiverCity);
 
         // 根据经过的时间模拟物流进度
-        if (hoursElapsed >= 2 && events.size() < 2) {
-            // 2小时后：已揽收
+        if (secondsElapsed >= PICKED_AFTER_SECONDS && events.size() < 2) {
+            // demo 环境不按真实小时等待，否则订单会长时间停在待揽收。
             events.add(TrackingEvent.builder()
-                    .time(shippedAt.plus(2, ChronoUnit.HOURS))
+                    .time(shippedAt.plus(PICKED_AFTER_SECONDS, ChronoUnit.SECONDS))
                     .description("快递员已揽收，正在发往【" + senderCity + "分拨中心】")
                     .location(senderCity + senderDistrict + "营业部")
                     .status("PICKED")
@@ -274,10 +288,9 @@ public class ShippingService {
             currentStatus = "PICKED";
         }
 
-        if (hoursElapsed >= 8 && events.size() < 3) {
-            // 8小时后：到达发件城市分拨中心
+        if (secondsElapsed >= DEPARTED_AFTER_SECONDS && events.size() < 3) {
             events.add(TrackingEvent.builder()
-                    .time(shippedAt.plus(8, ChronoUnit.HOURS))
+                    .time(shippedAt.plus(DEPARTED_AFTER_SECONDS, ChronoUnit.SECONDS))
                     .description("快件已到达【" + senderCity + "分拨中心】，准备发往" + receiverCity)
                     .location(senderCity + "分拨中心")
                     .status("IN_TRANSIT")
@@ -285,20 +298,18 @@ public class ShippingService {
             currentStatus = "IN_TRANSIT";
         }
 
-        if (hoursElapsed >= 24 && events.size() < 4) {
-            // 24小时后：经过中转城市
+        if (secondsElapsed >= TRANSIT_AFTER_SECONDS && events.size() < 4) {
             events.add(TrackingEvent.builder()
-                    .time(shippedAt.plus(24, ChronoUnit.HOURS))
+                    .time(shippedAt.plus(TRANSIT_AFTER_SECONDS, ChronoUnit.SECONDS))
                     .description("快件已到达【" + transitCity + "转运中心】，正在发往" + receiverCity)
                     .location(transitCity + "转运中心")
                     .status("IN_TRANSIT")
                     .build());
         }
 
-        if (hoursElapsed >= 48 && events.size() < 5) {
-            // 48小时后：到达目的城市
+        if (secondsElapsed >= DELIVERING_AFTER_SECONDS && events.size() < 5) {
             events.add(TrackingEvent.builder()
-                    .time(shippedAt.plus(48, ChronoUnit.HOURS))
+                    .time(shippedAt.plus(DELIVERING_AFTER_SECONDS, ChronoUnit.SECONDS))
                     .description("快件已到达【" + receiverCity + "分拨中心】，正在派送中")
                     .location(receiverCity + "分拨中心")
                     .status("DELIVERING")
@@ -306,20 +317,18 @@ public class ShippingService {
             currentStatus = "DELIVERING";
         }
 
-        if (hoursElapsed >= 56 && events.size() < 6) {
-            // 56小时后：派送中
+        if (secondsElapsed >= DELIVERY_STATION_AFTER_SECONDS && events.size() < 6) {
             events.add(TrackingEvent.builder()
-                    .time(shippedAt.plus(56, ChronoUnit.HOURS))
+                    .time(shippedAt.plus(DELIVERY_STATION_AFTER_SECONDS, ChronoUnit.SECONDS))
                     .description("快件正在派送中，派送员：李师傅，电话：138****8888")
                     .location(receiverCity + receiverDistrict + "配送站")
                     .status("DELIVERING")
                     .build());
         }
 
-        if (hoursElapsed >= 72 && events.size() < 7) {
-            // 72小时后：已签收
+        if (secondsElapsed >= DELIVERED_AFTER_SECONDS && events.size() < 7) {
             events.add(TrackingEvent.builder()
-                    .time(shippedAt.plus(72, ChronoUnit.HOURS))
+                    .time(shippedAt.plus(DELIVERED_AFTER_SECONDS, ChronoUnit.SECONDS))
                     .description("快件已签收，签收人：本人签收。感谢使用" + info.getExpressCompany() + "！")
                     .location(receiverCity + receiverDistrict)
                     .status("DELIVERED")
@@ -334,13 +343,22 @@ public class ShippingService {
                 .expressCode(info.getExpressCode())
                 .shippingStatus(currentStatus)
                 .shippedAt(info.getShippedAt())
-                .estimatedDeliveryTime(info.getEstimatedDeliveryTime())
+                .estimatedDeliveryTime(resolveEstimatedDeliveryTime(info, shippedAt))
                 .trackingEvents(events)
                 .senderCity(senderCity)
                 .senderDistrict(senderDistrict)
                 .receiverCity(receiverCity)
                 .receiverDistrict(receiverDistrict)
                 .build();
+    }
+
+    private Instant resolveEstimatedDeliveryTime(ShippingInfoDTO info, Instant shippedAt) {
+        Instant demoEstimatedDelivery = shippedAt.plus(DELIVERED_AFTER_SECONDS, ChronoUnit.SECONDS);
+        Instant currentEstimatedDelivery = info.getEstimatedDeliveryTime();
+        if (currentEstimatedDelivery == null || currentEstimatedDelivery.isAfter(demoEstimatedDelivery)) {
+            return demoEstimatedDelivery;
+        }
+        return currentEstimatedDelivery;
     }
 
     private String buildCreatedDescription(String shipmentType) {

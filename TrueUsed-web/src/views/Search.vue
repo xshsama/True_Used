@@ -75,8 +75,9 @@
 import { listProducts } from '@/api/products'
 import ProductCard from '@/components/ProductCard.vue'
 import SearchBar from '@/components/SearchBar.vue'
+import { useUserStore } from '@/stores/user'
 import { showFailToast, showSuccessToast } from 'vant'
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 export default {
@@ -85,6 +86,7 @@ export default {
     setup() {
         const router = useRouter()
         const route = useRoute()
+        const userStore = useUserStore()
 
         const searchValue = ref('')
         const refreshing = ref(false)
@@ -98,6 +100,11 @@ export default {
         const priceMin = ref()
         const priceMax = ref()
         const categoryId = ref()
+        const currentUserId = computed(() => userStore.user?.id)
+
+        const isNotOwnProduct = (product) => {
+            return !currentUserId.value || Number(product.seller?.id) !== Number(currentUserId.value)
+        }
 
         const sortOptions = [
             { text: '最新发布', value: 'created,desc' },
@@ -140,7 +147,7 @@ export default {
                 }
                 const res = await listProducts(params)
                 // 后端返回 Page<ProductDTO>
-                const content = res?.content || []
+                const content = (res?.content || []).filter(isNotOwnProduct)
                 if (page.value === 0) resultList.value = []
                 resultList.value.push(...content)
                 finished.value = res?.last || content.length < size.value

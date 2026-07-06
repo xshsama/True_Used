@@ -20,9 +20,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xsh.trueused.address.repository.AddressRepository;
 import com.xsh.trueused.coupon.repository.UserCouponRepository;
 import com.xsh.trueused.entity.Address;
+import com.xsh.trueused.entity.Coupon;
 import com.xsh.trueused.entity.Order;
 import com.xsh.trueused.entity.Product;
 import com.xsh.trueused.entity.User;
+import com.xsh.trueused.entity.UserCoupon;
+import com.xsh.trueused.enums.CouponType;
 import com.xsh.trueused.enums.ProductStatus;
 import com.xsh.trueused.notification.service.NotificationService;
 import com.xsh.trueused.observability.metrics.BusinessMetricsRecorder;
@@ -134,6 +137,32 @@ class OrderCommandServiceTest {
     }
 
     @Test
+    void createOrderShouldRejectPromotionCoupon() {
+        Product product = product(10L, 200L, ProductStatus.ON_SALE);
+        User buyer = user(100L);
+        Address address = address(20L, 100L);
+        UserCoupon userCoupon = userCoupon(30L, 100L, CouponType.PROMOTION);
+        CreateOrderRequest request = createOrderRequest(10L, 20L);
+        request.setUserCouponId(30L);
+
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(userRepository.findById(100L)).thenReturn(Optional.of(buyer));
+        when(addressRepository.findById(20L)).thenReturn(Optional.of(address));
+        when(userCouponRepository.findById(30L)).thenReturn(Optional.of(userCoupon));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> orderCommandService.createOrder(request, 100L));
+
+        assertEquals(409, ex.getStatusCode().value());
+        assertEquals("Coupon is not applicable to orders", ex.getReason());
+        verify(userCouponRepository, never()).save(org.mockito.ArgumentMatchers.any());
+        verify(productService, never()).updateProductStatusIfCurrent(
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void alipayRequestShouldRejectMismatchedAmount() {
         Order order = order(1L, 100L, 200L, new BigDecimal("6800.00"));
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
@@ -194,6 +223,21 @@ class OrderCommandServiceTest {
         address.setId(addressId);
         address.setUser(user(userId));
         return address;
+    }
+
+    private static UserCoupon userCoupon(Long userCouponId, Long userId, CouponType couponType) {
+        Coupon coupon = new Coupon();
+        coupon.setId(1L);
+        coupon.setType(couponType);
+        coupon.setDiscountAmount(new BigDecimal("20.00"));
+        coupon.setMinSpend(BigDecimal.ZERO);
+
+        UserCoupon userCoupon = new UserCoupon();
+        userCoupon.setId(userCouponId);
+        userCoupon.setUser(user(userId));
+        userCoupon.setCoupon(coupon);
+        userCoupon.setIsUsed(false);
+        return userCoupon;
     }
 
     private static Order order(Long orderId, Long buyerId, Long sellerId, BigDecimal price) {

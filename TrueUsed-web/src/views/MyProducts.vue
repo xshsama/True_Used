@@ -122,7 +122,8 @@ const loadData = async () => {
             const res = await getMyProducts({
                 page: page.value,
                 size: pageSize,
-                sort: 'created_desc'
+                sort: 'created_desc',
+                statuses: activeTab.value === 'sales' ? 'ON_SALE,LOCKED' : 'SOLD,OFF_SHELF'
             });
 
             const newItems = (res.content || []).map(p => ({
@@ -138,19 +139,8 @@ const loadData = async () => {
                 type: 'product'
             }));
 
-            // Filter locally if needed, but usually backend handles pagination. 
-            // However, getMyProducts returns all products for the user. 
-            // We need to filter by status group.
-            // Since backend pagination might return mixed statuses, we might need to filter on client side 
-            // OR update backend to support status filtering. 
-            // For now, let's assume we filter client side and append.
-
-            let filteredNewItems = [];
-            if (activeTab.value === 'sales') {
-                filteredNewItems = newItems.filter(i => ['ON_SALE', 'LOCKED'].includes(i.status));
-            } else {
-                filteredNewItems = newItems.filter(i => ['SOLD', 'OFF_SHELF'].includes(i.status));
-            }
+            const visibleStatuses = activeTab.value === 'sales' ? ['ON_SALE', 'LOCKED'] : ['SOLD', 'OFF_SHELF'];
+            const filteredNewItems = newItems.filter(i => visibleStatuses.includes(i.status));
 
             if (page.value === 0) {
                 items.value = dedupeById(filteredNewItems);

@@ -86,16 +86,20 @@ public class ProductService {
         assertCanManageProduct(p, sellerId, admin, "无权修改");
 
         BigDecimal oldPrice = p.getPrice();
+        ProductStatus oldStatus = p.getStatus();
 
-        applyUpdate(req, p);
+        applyUpdate(req, p, admin);
 
         // Price Drop Notification
         if (req.price() != null && req.price().compareTo(oldPrice) < 0) {
             notifyPriceDrop(p, oldPrice, req.price());
         }
 
-        // Invalidate static cache
-        redisTemplate.delete(KEY_STATIC + id);
+        if (p.getStatus() != oldStatus) {
+            invalidateProductStatusCache(id, p.getStatus());
+        } else {
+            evictProductStaticCache(id);
+        }
 
         return ProductMapper.enrich(ProductMapper.toDTO(p));
     }
@@ -183,6 +187,7 @@ public class ProductService {
     @Transactional(readOnly = true)
     public Optional<ProductDTO> findOne(Long id) {
         ProductDTO staticDto = null;
+        ProductStatus dbStatus = null;
         String staticKey = KEY_STATIC + id;
 
         // 1. Try fetch static info from Redis
@@ -201,7 +206,9 @@ public class ProductService {
             if (pOpt.isEmpty()) {
                 return Optional.empty();
             }
-            staticDto = ProductMapper.toDTO(pOpt.get());
+            Product product = pOpt.get();
+            staticDto = ProductMapper.toDTO(product);
+            dbStatus = product.getStatus();
             // Save to Redis (TTL 6h)
             try {
                 redisTemplate.opsForValue().set(staticKey, objectMapper.writeValueAsString(staticDto), 6,
@@ -211,22 +218,23 @@ public class ProductService {
             }
         }
 
+        if (dbStatus == null) {
+            Optional<ProductStatus> statusOpt = productRepository.findStatusById(id);
+            if (statusOpt.isEmpty()) {
+                return Optional.empty();
+            }
+            dbStatus = statusOpt.get();
+        }
+
         // 3. Fetch dynamic data (Status, Views, Favorites)
-        ProductStatus status = staticDto.status();
+        ProductStatus status = dbStatus;
         Long views = staticDto.viewsCount();
         Long favs = staticDto.favoritesCount();
 
-        // Status
-        String statusStr = redisTemplate.opsForValue().get(KEY_STATUS + id);
-        if (statusStr != null) {
-            try {
-                status = ProductStatus.valueOf(statusStr);
-            } catch (IllegalArgumentException e) {
-                // ignore
-            }
-        } else {
-            // Init Redis status from DB value (which is in staticDto)
+        try {
             redisTemplate.opsForValue().set(KEY_STATUS + id, status.name());
+        } catch (Exception e) {
+            log.warn("Failed to sync product status cache for product {}", id, e);
         }
 
         // Views
@@ -251,6 +259,22 @@ public class ProductService {
 
         // 4. Merge and return
         return Optional.of(ProductMapper.enrich(withDynamicData(staticDto, status, views, favs)));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<ProductDTO> findOneForViewer(Long id, Long viewerId, boolean admin) {
+        return findOne(id).filter(dto -> canViewProductDetail(dto, viewerId, admin));
+    }
+
+    private boolean canViewProductDetail(ProductDTO dto, Long viewerId, boolean admin) {
+        if (dto.status() == ProductStatus.ON_SALE) {
+            return true;
+        }
+        return admin || isSeller(dto, viewerId);
+    }
+
+    private boolean isSeller(ProductDTO dto, Long viewerId) {
+        return viewerId != null && dto.seller() != null && Objects.equals(dto.seller().id(), viewerId);
     }
 
     private ProductDTO withDynamicData(ProductDTO dto, ProductStatus status, Long views, Long favs) {
@@ -309,8 +333,12 @@ public class ProductService {
     }
 
     private void invalidateProductStatusCache(Long id, ProductStatus status) {
-        redisTemplate.opsForValue().set(KEY_STATUS + id, status.name());
-        redisTemplate.delete(KEY_STATIC + id);
+        try {
+            redisTemplate.opsForValue().set(KEY_STATUS + id, status.name());
+            redisTemplate.delete(KEY_STATIC + id);
+        } catch (Exception e) {
+            log.warn("Failed to refresh product status cache for product {}", id, e);
+        }
     }
 
     @Transactional
@@ -318,7 +346,15 @@ public class ProductService {
         Product p = productRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("商品不存在"));
         p.setInspectionGrade(inspectionGrade);
         productRepository.save(p);
-        redisTemplate.delete(KEY_STATIC + id);
+        evictProductStaticCache(id);
+    }
+
+    private void evictProductStaticCache(Long id) {
+        try {
+            redisTemplate.delete(KEY_STATIC + id);
+        } catch (Exception e) {
+            log.warn("Failed to evict product static cache for product {}", id, e);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -327,8 +363,8 @@ public class ProductService {
         Pageable pageable = PageRequest.of(page, size, resolveSort(sort));
         Specification<Product> spec = (root, query, cb) -> {
             java.util.List<Predicate> predicates = new java.util.ArrayList<>();
-            if (status != null) {
-                predicates.add(cb.equal(root.get("status"), status));
+            if (status != null && status != ProductStatus.ON_SALE) {
+                predicates.add(cb.disjunction());
             } else {
                 predicates.add(cb.equal(root.get("status"), ProductStatus.ON_SALE));
             }
@@ -422,7 +458,7 @@ public class ProductService {
         }
     }
 
-    private void applyUpdate(ProductUpdateRequest req, Product p) {
+    private void applyUpdate(ProductUpdateRequest req, Product p, boolean admin) {
         if (req.title() != null)
             p.setTitle(req.title());
         if (req.description() != null)
@@ -433,7 +469,7 @@ public class ProductService {
             p.setOriginalPrice(req.originalPrice());
         if (req.currency() != null)
             p.setCurrency(req.currency());
-        if (req.status() != null)
+        if (admin && req.status() != null)
             p.setStatus(req.status());
         ProductCondition sellerClaimCondition = resolveSellerClaimCondition(req.sellerClaimCondition(), req.condition());
         if (sellerClaimCondition != null)
@@ -482,8 +518,10 @@ public class ProductService {
     public ProductDTO publishProduct(Long id, Long sellerId, boolean admin) {
         Product p = productRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("商品不存在"));
         assertCanManageProduct(p, sellerId, admin, "无权操作");
-        updateProductStatus(id, ProductStatus.ON_SALE);
-        return ProductMapper.enrich(ProductMapper.toDTO(p));
+        p.setStatus(ProductStatus.ON_SALE);
+        Product saved = productRepository.save(p);
+        invalidateProductStatusCache(id, ProductStatus.ON_SALE);
+        return ProductMapper.enrich(ProductMapper.toDTO(saved));
     }
 
     @Transactional
@@ -495,8 +533,10 @@ public class ProductService {
     public ProductDTO hideProduct(Long id, Long sellerId, boolean admin) {
         Product p = productRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("商品不存在"));
         assertCanManageProduct(p, sellerId, admin, "无权操作");
-        updateProductStatus(id, ProductStatus.OFF_SHELF);
-        return ProductMapper.enrich(ProductMapper.toDTO(p));
+        p.setStatus(ProductStatus.OFF_SHELF);
+        Product saved = productRepository.save(p);
+        invalidateProductStatusCache(id, ProductStatus.OFF_SHELF);
+        return ProductMapper.enrich(ProductMapper.toDTO(saved));
     }
 
     private void assertCanManageProduct(Product product, Long userId, boolean admin, String message) {
@@ -506,7 +546,7 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ProductDTO> findMyProducts(Long sellerId, String q, ProductStatus status, int page, int size) {
+    public Page<ProductDTO> findMyProducts(Long sellerId, String q, java.util.List<ProductStatus> statuses, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Specification<Product> spec = (root, query, cb) -> {
             java.util.List<Predicate> predicates = new java.util.ArrayList<>();
@@ -517,8 +557,8 @@ public class ProductService {
                 String pattern = "%" + q.trim() + "%";
                 predicates.add(cb.like(root.get("title"), pattern));
             }
-            if (status != null) {
-                predicates.add(cb.equal(root.get("status"), status));
+            if (statuses != null && !statuses.isEmpty()) {
+                predicates.add(root.get("status").in(statuses));
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };

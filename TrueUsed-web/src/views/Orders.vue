@@ -1,5 +1,5 @@
 <script setup>
-import { cancelOrder, confirmDelivery, getMyOrders } from '@/api/orders';
+import { cancelOrder, confirmDelivery, getMyOrders, getOrderShipping } from '@/api/orders';
 import SearchBar from '@/components/SearchBar.vue';
 import { resolveAvatar } from '@/utils/avatar';
 import { normalizeProductTrade } from '@/utils/productTrade';
@@ -25,9 +25,11 @@ const refreshing = ref(false);
 const finished = ref(false);
 const nowTs = ref(Date.now());
 let countdownTimer = null;
+let shippingRefreshTimer = null;
 
 const tabs = ['全部', '待付款', '待发货', '待收货', '售后/退款'];
 const pendingShipStatuses = ['PAID', 'PENDING_SHIPMENT'];
+const receiptReadyShippingStatuses = ['DELIVERING', 'DELIVERED'];
 
 // --- Status Mapping ---
 const statusMap = {
@@ -42,6 +44,48 @@ const getTrade = (order) => normalizeProductTrade(order?.product || {});
 
 const getActionErrorMessage = (error, fallback) => {
     return error?.response?.data?.message || error?.message || fallback;
+};
+
+const getShippingStatus = (order) => order?.shippingInfo?.shippingStatus || '';
+
+const canConfirmReceipt = (order) => (
+    order?.status === 'SHIPPED' &&
+    receiptReadyShippingStatuses.includes(getShippingStatus(order))
+);
+
+const getConfirmDisabledReason = (order) => {
+    if (order?.status !== 'SHIPPED') return '';
+    const status = getShippingStatus(order);
+    if (!status) return '物流信息同步中，请稍后再试';
+    if (status === 'PENDING') return '包裹尚未揽收，暂不可确认收货';
+    if (status === 'PICKED') return '包裹已揽收，暂未进入派送阶段';
+    if (status === 'IN_TRANSIT') return '包裹运输中，暂不可确认收货';
+    return '';
+};
+
+const applyShippingInfo = (order, shippingInfo) => {
+    if (!order || !shippingInfo) return;
+    order.shippingInfo = shippingInfo;
+    order.trackingNumber = order.trackingNumber || shippingInfo.trackingNumber;
+    order.expressCompany = order.expressCompany || shippingInfo.expressCompany;
+    order.expressCode = order.expressCode || shippingInfo.expressCode;
+    order.shippedAt = order.shippedAt || shippingInfo.shippedAt;
+    order.estimatedDeliveryTime = shippingInfo.estimatedDeliveryTime || order.estimatedDeliveryTime;
+};
+
+const refreshOrderShipping = async (order) => {
+    if (order?.status !== 'SHIPPED') return;
+    try {
+        const shippingInfo = await getOrderShipping(order.id);
+        applyShippingInfo(order, shippingInfo);
+    } catch (error) {
+        console.error('Failed to fetch order shipping:', error);
+    }
+};
+
+const refreshReceivableShipping = async () => {
+    const receivableOrders = orders.value.filter(order => order.status === 'SHIPPED');
+    await Promise.all(receivableOrders.map(refreshOrderShipping));
 };
 
 const getStatusText = (order) => {
@@ -79,6 +123,7 @@ const loadOrders = async () => {
         const res = await getMyOrders();
         // Ensure res is an array
         orders.value = Array.isArray(res) ? res : (res.content || []);
+        await refreshReceivableShipping();
         finished.value = true;
     } catch (error) {
         console.error(error);
@@ -140,6 +185,10 @@ const cancel = (order) => {
 };
 
 const confirm = (order) => {
+    if (!canConfirmReceipt(order)) {
+        showFailToast(getConfirmDisabledReason(order) || '当前物流状态暂不可确认收货');
+        return;
+    }
     showConfirmDialog({ title: '确认收货', message: '确认收到货物？' })
         .then(async () => {
             try {
@@ -209,6 +258,15 @@ const getLogisticsPreview = (order) => {
         return '等待卖家录入快递信息';
     }
     if (order.status === 'SHIPPED') {
+        const status = getShippingStatus(order);
+        const events = Array.isArray(order.shippingInfo?.trackingEvents) ? order.shippingInfo.trackingEvents : [];
+        const latestEvent = events.length > 0 ? events[events.length - 1] : null;
+        if (latestEvent?.description) return latestEvent.description;
+        if (status === 'PENDING') return '包裹尚未揽收，暂不可确认收货';
+        if (status === 'PICKED') return '包裹已揽收，暂未进入派送阶段';
+        if (status === 'IN_TRANSIT') return '包裹运输中，暂不可确认收货';
+        if (status === 'DELIVERING') return '快件正在派送中，可确认收货';
+        if (status === 'DELIVERED') return '快件已签收，可确认收货';
         return trade.hasPlatformInspection
             ? '平台已出库，点击查看完整物流轨迹'
             : '卖家已发货，点击查看完整物流轨迹';
@@ -223,6 +281,9 @@ onMounted(() => {
     }, 1000);
 
     loadOrders();
+    shippingRefreshTimer = setInterval(() => {
+        refreshReceivableShipping();
+    }, 10000);
 
     // Handle query params for initial tab
     const statusQuery = route.query.status;
@@ -243,6 +304,10 @@ onUnmounted(() => {
     if (countdownTimer) {
         clearInterval(countdownTimer);
         countdownTimer = null;
+    }
+    if (shippingRefreshTimer) {
+        clearInterval(shippingRefreshTimer);
+        shippingRefreshTimer = null;
     }
 });
 
@@ -377,8 +442,16 @@ onUnmounted(() => {
                                     <template v-if="order.status === 'SHIPPED'">
                                         <button @click="viewLogistics(order)"
                                             class="px-3 py-1.5 rounded-full border border-gray-200 text-xs text-gray-500 hover:border-gray-300 transition-colors">查看物流</button>
-                                        <button @click="confirm(order)"
-                                            class="px-4 py-1.5 rounded-full bg-[#4a8b6e] text-white text-xs font-bold shadow-md shadow-emerald-100 hover:bg-[#3b755b] transition-colors">
+                                        <button
+                                            @click="confirm(order)"
+                                            :disabled="!canConfirmReceipt(order)"
+                                            :title="getConfirmDisabledReason(order)"
+                                            :class="[
+                                                'px-4 py-1.5 rounded-full text-xs font-bold transition-colors',
+                                                canConfirmReceipt(order)
+                                                    ? 'bg-[#4a8b6e] text-white shadow-md shadow-emerald-100 hover:bg-[#3b755b]'
+                                                    : 'cursor-not-allowed bg-gray-100 text-gray-400'
+                                            ]">
                                             确认收货
                                         </button>
                                     </template>

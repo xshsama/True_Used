@@ -277,6 +277,7 @@ const userStore = useUserStore()
 const isSellerMode = ref(false)
 const isLoggedIn = computed(() => userStore.isLoggedIn)
 const userInfo = computed(() => userStore.user || {})
+const currentUserId = computed(() => userInfo.value?.id)
 const avatarSrc = ref(defaultAvatarUrl)
 const recentHistory = ref([])
 const topProducts = ref([])
@@ -322,6 +323,7 @@ const currentAssets = computed(() => [
 const buyerServices = [
     { label: '收货地址', icon: 'i-lucide-map-pin', action: 'address' },
     { label: '我的收藏', icon: 'i-lucide-heart', action: 'favorites' },
+    { label: '关注卖家', icon: 'i-lucide-user-check', action: 'following' },
     { label: '浏览记录', icon: 'i-lucide-clock', action: 'history' },
     { label: '领券中心', icon: 'i-lucide-ticket', action: 'coupons' },
     { label: '帮助中心', icon: 'i-lucide-message-circle', action: 'help' },
@@ -366,7 +368,10 @@ const fetchRecentHistory = async () => {
     if (!isLoggedIn.value) return
     try {
         const res = await getBrowsingHistory({ page: 0, size: 20 })
-        const filteredList = (res.content || []).filter(item => item.product.status === 'ON_SALE')
+        const filteredList = (res.content || []).filter(item => {
+            const product = item.product || {}
+            return product.status === 'ON_SALE' && Number(product.seller?.id) !== Number(currentUserId.value)
+        })
         recentHistory.value = filteredList.slice(0, 4).map(item => ({
             id: item.product.id,
             title: item.product.title,
@@ -513,6 +518,7 @@ const handleServiceClick = (item) => {
     switch (item.action) {
         case 'address': router.push('/address'); break;
         case 'favorites': router.push('/favorites'); break;
+        case 'following': router.push('/following'); break;
         case 'settings': router.push('/settings'); break;
         case 'products': router.push('/my-products'); break;
         case 'help': router.push('/help'); break;

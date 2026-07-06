@@ -350,3 +350,165 @@
   构建通过；Playwright 验证分类弹层可见，弹层在遮罩上方，选择 `数码` 后正常关闭并回填。
 - 后续建议：
   本地浏览器若仍看到旧黑屏，先强刷页面或重启 Vite dev server，避免热更新缓存残留旧组件。
+
+## 2026-07-06 异步验货寄售补偿失败修复
+
+- 问题描述：
+  后端异步验货线程出现 `Failed to handle consignment failure`，寄售验货失败后的状态补偿可能二次失败。
+- 根因分析：
+  异步验货流程在非事务上下文中读取 `InspectionResult.item`、生成摘要和处理寄售商品，容易触发懒加载异常；失败补偿阶段还会调用商品状态/验货等级更新，若 Redis 缓存不可用，缓存写入异常会反向导致数据库状态补偿失败。
+- 解决方法：
+  为验货结果查询启用 `item` EntityGraph，保证异步线程读取检测项字段时实体已初始化；将智能摘要生成放进短事务方法；寄售成功/失败补偿改为通过 productId 查询更新，避免依赖懒加载的 `Consignment.product`；商品状态和验货等级更新中的 Redis 缓存刷新降级为 best-effort，缓存失败只记录 warn，不阻断数据库事务。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/inspection/repository/InspectionResultRepository.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/consignment/repository/ConsignmentRepository.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/inspection/service/InspectionService.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/product/service/ProductService.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/inspection/service/InspectionServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  使用 `JAVA_HOME=/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home ./mvnw -Dtest=InspectionServiceTest test`；使用同一 `JAVA_HOME` 执行 `./mvnw test`；执行 `git diff --check`。
+- 结果：
+  `InspectionServiceTest` 通过 2 个测试；全量后端测试通过 51 个测试，0 failures/errors；空白检查通过。
+- 后续建议：
+  若线上再次出现验货失败日志，优先查看前一条 `Error during inspection simulation` 的完整堆栈；当前这条补偿日志不应再由懒加载或 Redis 缓存失败触发。
+
+## 2026-07-06 商品可见性与自购入口修复
+
+- 问题描述：
+  买家侧详情页可直接看到已下架商品；卖家在买家首页/搜索结果中可能看到自己发布的商品；商品普通编辑链路存在意外改写销售状态的风险。
+- 根因分析：
+  公开商品详情接口对所有商品状态都返回数据，只在前端禁用购买；公开列表接口允许传入非 `ON_SALE` 状态查询；卖家编辑接口接收并应用 `status` 字段，状态流转入口不够收敛；`我的商品` 页面先分页再按状态过滤，可能导致 tab 数据错位。
+- 解决方法：
+  公开列表强制只返回 `ON_SALE` 商品；公开详情只允许非卖家查看 `ON_SALE`，卖家/管理员可查看自己的非公开商品用于管理；普通卖家编辑不再处理 `status`，状态变更统一走上架/下架接口；`我的商品` 支持 `statuses` 后端分组过滤；首页/搜索增加当前用户商品兜底过滤；详情页禁用自购、自己聊天、自己收藏。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/product/controller/ProductController.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/product/service/ProductService.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/Home.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/Search.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/MyProducts.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/ProductDetail.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  执行 `TrueUsed-web` 下 `npm run build`；执行 `JAVA_HOME=/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home ./mvnw test`；执行 `git diff --check`；使用 Playwright mock 当前用户与商品列表，验证首页过滤自己的商品、自己的详情页购买按钮禁用。
+- 结果：
+  前端构建通过；后端全量测试通过 51 个测试；空白检查通过；Playwright 页面级验证通过。
+- 后续建议：
+  对线上已被错误标记为 `OFF_SHELF` 且并非验货驳回/已售的历史商品，需要由卖家重新上架或后台按业务审计后恢复状态。
+
+## 2026-07-06 商品详情状态缓存错位修复
+
+- 问题描述：
+  数据库中商品状态已经是 `ON_SALE`，但商品详情页仍显示“已下架”。
+- 根因分析：
+  商品详情服务会先读取 DB/静态缓存中的商品信息，再使用 Redis `product:status:{id}` 覆盖状态；当 Redis 状态缓存残留 `OFF_SHELF` 时，即使 DB 已恢复为 `ON_SALE`，接口仍返回下架状态给前端。
+- 解决方法：
+  商品详情状态改为以数据库当前状态为准；Redis 状态键只作为派生缓存同步写入，不再作为详情接口的权威状态来源；新增 repository 状态查询和单元测试覆盖 Redis 状态缓存过期/错位场景。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/product/repository/ProductRepository.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/product/service/ProductService.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/product/service/ProductServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  执行 `JAVA_HOME=/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home ./mvnw -Dtest=ProductServiceTest test`；执行 `JAVA_HOME=/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home ./mvnw test`；执行 `TrueUsed-web` 下 `npm run build`；执行 `git diff --check`。
+- 结果：
+  新增 `ProductServiceTest` 通过；后端全量测试通过 52 个测试；前端构建通过；空白检查通过。
+- 后续建议：
+  如果旧后端进程尚未重启，临时可删除对应 Redis 键 `product:status:{商品ID}` 和 `product:static:{商品ID}`；部署本次修复后详情接口会自动用 DB 状态纠偏并刷新 Redis 状态缓存。
+
+## 2026-07-06 浏览历史自有商品过滤修复
+
+- 问题描述：
+  个人页买家版“最近浏览 & 推荐”和浏览记录页仍可能显示当前登录用户自己发布的商品。
+- 根因分析：
+  公开列表和详情链路已经过滤了自有商品，但浏览历史接口仍按用户历史记录直接返回数据；历史表中已有的旧记录不会因为详情页停止新增记录而自动消失，前端也只按商品状态做了部分过滤。
+- 解决方法：
+  浏览历史写入前先识别商品卖家，当前用户查看自己的商品时不再记录历史；浏览历史查询改为只返回 `ON_SALE` 且 `seller.id != currentUserId` 的商品；个人页和浏览记录页增加同样的前端兜底过滤，并确保浏览记录页过滤前能拿到当前用户 id。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/interaction/repository/BrowsingHistoryRepository.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/interaction/service/BrowsingHistoryService.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/interaction/service/BrowsingHistoryServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/Profile.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/BrowsingHistory.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  执行 `JAVA_HOME=/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home ./mvnw -Dtest=BrowsingHistoryServiceTest test -q`；执行 `JAVA_HOME=/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home ./mvnw test -q`；执行 `TrueUsed-web` 下 `npm run build`；使用 Playwright mock 当前用户、自有上架商品、他人上架商品、他人下架商品，验证 `/profile` 和 `/history` 只渲染他人上架商品。
+- 结果：
+  浏览历史服务单测通过；后端全量测试通过；前端构建通过但保留既有 `:deep(...)` lightningcss warning；Playwright 页面级验证通过，自有商品和下架商品都不再出现在最近浏览与浏览记录页。
+- 后续建议：
+  旧浏览记录无需手动清库；部署并重启后端后，历史接口会在查询层过滤掉这些记录。若浏览器仍显示旧卡片，优先强刷前端页面或重启 Vite dev server。
+
+## 2026-07-06 订单物流待揽收卡住修复
+
+- 问题描述：
+  订单详情页物流进度长时间停在“待揽收”，买家无法继续确认收货，平台验货履约单看起来像卡死在出库后。
+- 根因分析：
+  后端 mock 物流按真实小时推进，发货后 2 小时才进入已揽收、48 小时才进入派送中；前端订单详情只在页面加载时请求一次物流接口，不会在用户停留页面期间自动刷新。
+- 解决方法：
+  将 mock 物流时间线改为 demo 级秒级推进：10 秒已揽收、20/40 秒运输中、60 秒派送中、120 秒已签收；刷新旧物流快照时同步压缩预计送达时间；订单详情页在 `SHIPPED` 且有物流单号时每 10 秒轮询物流接口，状态到已签收或离开页面后停止轮询。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/order/service/ShippingService.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/order/service/ShippingServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/OrderDetail.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  执行 `JAVA_HOME=/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home ./mvnw -Dtest=ShippingServiceTest test -q`；执行 `JAVA_HOME=/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home ./mvnw test -q`；执行 `TrueUsed-web` 下 `npm run build`；使用 Playwright mock 首次返回待揽收、轮询后返回派送中，验证 `/order/9001` 自动更新物流状态并解锁确认收货按钮；执行 `git diff --check`。
+- 结果：
+  物流服务单测通过；后端全量测试通过；前端构建通过但保留既有 `:deep(...)` lightningcss warning；Playwright 页面级验证通过，物流不再需要等待真实小时才能继续交易流程。
+- 后续建议：
+  这是演示环境的 mock 物流节奏；如果后续接入真实快递 API，应保留轮询/刷新机制，但把状态推进交给真实物流回调或快递轨迹查询结果。
+
+## 2026-07-06 订单列表确认收货门禁修复
+
+- 问题描述：
+  订单详情页在物流未到派送/签收阶段时不能确认收货，但订单列表卡片底部的“确认收货”按钮仍显示为可点击，造成内外规则不一致。
+- 根因分析：
+  订单列表页只根据订单状态 `SHIPPED` 展示确认收货入口，没有读取 `/orders/{id}/shipping` 的物流状态；详情页则额外要求物流状态为 `DELIVERING` 或 `DELIVERED`。
+- 解决方法：
+  订单列表加载后为 `SHIPPED` 订单补取物流信息，并每 10 秒轮询刷新；列表按钮复用与详情页一致的确认门禁，只在 `DELIVERING/DELIVERED` 时启用；待揽收、已揽收、运输中分别展示不可确认原因。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/Orders.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  执行 `TrueUsed-web` 下 `npm run build`；使用 Playwright mock 订单列表首个物流状态为 `PENDING`、轮询后变为 `DELIVERING`，验证 `/orders` 中“确认收货”按钮先禁用后解锁；执行 `git diff --check`。
+- 结果：
+  前端构建通过但保留既有 `:deep(...)` lightningcss warning；Playwright 页面级验证通过；空白检查通过。
+- 后续建议：
+  后续若真实快递接口接入列表聚合接口，可把当前逐单查询替换为后端批量返回物流摘要，减少列表页额外请求。
+
+## 2026-07-06 聊天商品上下文入口修复
+
+- 问题描述：
+  消息中心右侧交易侧栏显示“交易模式待确认”和“当前会话未绑定真实商品”的占位文案，聊天头部存在未接业务动作的“打开商品”和“语音协商”按钮。
+- 根因分析：
+  当前后端会话模型只按用户维度创建会话，没有持久化商品绑定；前端商品详情进入聊天时也没有把商品 ID 带到聊天页，导致交易侧栏只能展示占位信息。
+- 解决方法：
+  商品详情页发起聊天时通过路由 query 带入 `productId`；消息中心读取该商品详情并展示真实商品卡、交易模式、状态和风险提示；“打开商品”只在存在商品上下文时展示并跳转商品详情；删除“语音协商”入口。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/ProductDetail.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/Messages.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  执行 `TrueUsed-web` 下 `npm run build`；执行 `git diff --check -- TrueUsed-web/src/views/Messages.vue TrueUsed-web/src/views/ProductDetail.vue`。
+- 结果：
+  前端构建通过；空白检查通过；构建仍保留项目既有 `:deep(...)` lightningcss warning。
+- 后续建议：
+  如果后续要支持同一买卖双方围绕多个商品长期会话，建议后端新增商品维度的会话上下文或独立商品会话表，而不是继续依赖路由 query。
+
+## 2026-07-06 聊天未绑定商品占位卡清理
+
+- 问题描述：
+  普通联系人会话仍展示“未绑定商品”和“普通联系人会话没有商品上下文”的交易模式占位卡，用户侧感知为未完成能力。
+- 根因分析：
+  消息中心将“无商品上下文”作为交易侧栏的显式状态展示，但普通会话本身不需要承载商品状态，展示占位反而增加噪音。
+- 解决方法：
+  无商品上下文时不再渲染交易模式卡；只有关联商品存在时才展示真实交易模式；侧栏说明改为更短的通用文案。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/Messages.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  执行 `TrueUsed-web` 下 `npm run build`；执行 `git diff --check -- TrueUsed-web/src/views/Messages.vue`；使用 `rg` 确认聊天页无“未绑定商品/普通联系人会话”残留。
+- 结果：
+  前端构建通过；空白检查通过；目标文案已从聊天页移除；构建仍保留项目既有 `:deep(...)` lightningcss warning。
+- 后续建议：
+  如果后续接后端商品会话绑定，再只在有真实商品数据时恢复交易模式卡。

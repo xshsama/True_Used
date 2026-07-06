@@ -521,41 +521,56 @@ onMounted(() => {
                 <!-- Mode B: Direct Sell Logistics -->
                 <section v-else class="bg-white rounded-2xl p-8 shadow-sm border border-gray-100/50 space-y-4">
                     <h2 class="font-bold text-lg text-[#2c3e50]">交易与发货</h2>
-                    <div class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <div class="bg-gray-100 p-2 rounded-full">
-                                    <Truck :size="16" />
+                    <div class="space-y-3">
+                        <div class="trade-control-row">
+                            <div class="trade-control-title">
+                                <div class="trade-control-icon">
+                                    <Truck :size="17" />
                                 </div>
-                                <span class="text-sm font-bold text-gray-700">快递发货</span>
+                                <div>
+                                    <span class="block text-sm font-bold text-gray-700">快递发货</span>
+                                    <span class="text-xs text-gray-400">选择运费承担方</span>
+                                </div>
                             </div>
-                            <div class="flex items-center gap-3">
-                                <label class="flex items-center gap-1 cursor-pointer">
-                                    <input type="radio" value="seller" v-model="form.freight" class="accent-[#4a8b6e]">
-                                    <span class="text-sm text-gray-600">包邮</span>
+                            <div class="freight-selector" role="radiogroup" aria-label="快递发货运费">
+                                <label :class="['freight-option', { 'freight-option-active': form.freight === 'seller' }]">
+                                    <input type="radio" name="freight-payer" value="seller" v-model="form.freight"
+                                        class="visually-hidden" />
+                                    <span class="freight-option-mark"></span>
+                                    <span class="freight-option-copy">
+                                        <strong>包邮</strong>
+                                        <small>卖家承担</small>
+                                    </span>
                                 </label>
-                                <label class="flex items-center gap-1 cursor-pointer">
-                                    <input type="radio" value="buyer" v-model="form.freight" class="accent-[#4a8b6e]">
-                                    <span class="text-sm text-gray-600">到付</span>
+                                <label :class="['freight-option', { 'freight-option-active': form.freight === 'buyer' }]">
+                                    <input type="radio" name="freight-payer" value="buyer" v-model="form.freight"
+                                        class="visually-hidden" />
+                                    <span class="freight-option-mark"></span>
+                                    <span class="freight-option-copy">
+                                        <strong>到付</strong>
+                                        <small>买家承担</small>
+                                    </span>
                                 </label>
                             </div>
                         </div>
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <div class="bg-gray-100 p-2 rounded-full">
-                                    <Users :size="16" />
+                        <label :class="['trade-control-row meetup-toggle-card', { 'meetup-toggle-card-active': form.isMeetup }]">
+                            <input type="checkbox" id="meetup-toggle" v-model="form.isMeetup" class="visually-hidden" />
+                            <div class="trade-control-title">
+                                <div class="trade-control-icon">
+                                    <Users :size="17" />
                                 </div>
-                                <span class="text-sm font-bold text-gray-700">支持面交</span>
+                                <div>
+                                    <span class="block text-sm font-bold text-gray-700">支持面交</span>
+                                    <span class="text-xs text-gray-400">同城买家可当面交易</span>
+                                </div>
                             </div>
-                            <!-- Toggle -->
-                            <div
-                                class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                                <input type="checkbox" id="toggle" v-model="form.isMeetup"
-                                    class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer" />
-                                <label for="toggle"
-                                    class="toggle-label block overflow-hidden h-5 rounded-full bg-gray-300 cursor-pointer"></label>
-                            </div>
-                        </div>
+                            <span class="meetup-switch" aria-hidden="true">
+                                <span class="meetup-switch-state">{{ form.isMeetup ? '已开启' : '未开启' }}</span>
+                                <span class="meetup-switch-track">
+                                    <span class="meetup-switch-thumb"></span>
+                                </span>
+                            </span>
+                        </label>
                         <div class="pt-4 border-t border-gray-100">
                             <div class="flex items-center gap-2 text-sm text-gray-500">
                                 <MapPin :size="16" class="text-[#4a8b6e]" />
@@ -609,6 +624,18 @@ onMounted(() => {
     display: none;
 }
 
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 /* 模式选择卡片选中态 */
 .mode-card-selected {
     border-color: #4a8b6e;
@@ -660,6 +687,204 @@ onMounted(() => {
     font-weight: 500;
 }
 
+.trade-control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 76px;
+    padding: 12px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    background: #f9fafb;
+    transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.trade-control-row:hover {
+    border-color: rgba(74, 139, 110, 0.35);
+    background: #fbfdfc;
+}
+
+.trade-control-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.trade-control-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: 1px solid #eef0f3;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #2c3e50;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+    transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.freight-selector {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(112px, 1fr));
+    gap: 8px;
+    flex: 0 0 min(320px, 50%);
+}
+
+.freight-option {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 48px;
+    padding: 9px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #64748b;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.freight-option:hover {
+    border-color: rgba(74, 139, 110, 0.45);
+    color: #2c3e50;
+}
+
+.freight-option:focus-within,
+.meetup-toggle-card:focus-within {
+    outline: 3px solid rgba(74, 139, 110, 0.16);
+    outline-offset: 2px;
+}
+
+.freight-option-active {
+    border-color: #4a8b6e;
+    background: linear-gradient(180deg, rgba(74, 139, 110, 0.1), rgba(74, 139, 110, 0.04));
+    color: #2c3e50;
+    box-shadow: 0 8px 20px rgba(74, 139, 110, 0.12);
+}
+
+.freight-option-mark {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    border: 2px solid #cbd5e1;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow: inset 0 0 0 4px #ffffff;
+    transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.freight-option-active .freight-option-mark {
+    border-color: #4a8b6e;
+    background: #4a8b6e;
+}
+
+.freight-option-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+    line-height: 1.05;
+}
+
+.freight-option-copy strong {
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.freight-option-copy small {
+    color: #9ca3af;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.freight-option-active .freight-option-copy small {
+    color: rgba(74, 139, 110, 0.86);
+}
+
+.meetup-toggle-card {
+    cursor: pointer;
+    user-select: none;
+}
+
+.meetup-toggle-card-active {
+    border-color: rgba(74, 139, 110, 0.65);
+    background: #f4fbf7;
+    box-shadow: 0 8px 20px rgba(74, 139, 110, 0.08);
+}
+
+.meetup-toggle-card-active .trade-control-icon {
+    border-color: rgba(74, 139, 110, 0.28);
+    background: rgba(74, 139, 110, 0.1);
+    color: #4a8b6e;
+}
+
+.meetup-switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.meetup-toggle-card-active .meetup-switch {
+    color: #4a8b6e;
+}
+
+.meetup-switch-track {
+    display: flex;
+    align-items: center;
+    width: 54px;
+    height: 30px;
+    padding: 3px;
+    border-radius: 999px;
+    background: #cfd4dc;
+    box-shadow: inset 0 1px 3px rgba(44, 62, 80, 0.2);
+    transition: background 0.18s ease;
+}
+
+.meetup-switch-thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.2);
+    transform: translateX(0);
+    transition: transform 0.18s ease;
+}
+
+.meetup-toggle-card-active .meetup-switch-track {
+    background: #4a8b6e;
+}
+
+.meetup-toggle-card-active .meetup-switch-thumb {
+    transform: translateX(24px);
+}
+
+@media (max-width: 640px) {
+    .trade-control-row {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .freight-selector {
+        width: 100%;
+        flex: none;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .meetup-switch {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
 /* 切换动画 */
 .fade-enter-active,
 .fade-leave-active {
@@ -670,28 +895,5 @@ onMounted(() => {
 .fade-leave-to {
     opacity: 0;
     transform: translateY(10px);
-}
-
-/* Toggle Checkbox */
-.toggle-checkbox:checked {
-    @apply: right-0 border-green-400;
-    right: 0;
-    border-color: #4a8b6e;
-}
-
-.toggle-checkbox:checked+.toggle-label {
-    @apply: bg-green-400;
-    background-color: #4a8b6e;
-}
-
-.toggle-checkbox {
-    right: 0;
-    z-index: 1;
-    border-color: white;
-    transition: all 0.2s;
-}
-
-.toggle-label {
-    width: 2.5rem;
 }
 </style>

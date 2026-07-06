@@ -38,6 +38,7 @@ const seed = () => ({
       role: 'ADMIN',
     },
   ],
+  userFollows: [],
   categories: [
     { id: 1, name: '数码', icon: 'i-lucide-smartphone' },
     { id: 2, name: '电脑', icon: 'i-lucide-monitor' },
@@ -263,6 +264,9 @@ function loadState() {
 }
 
 function hydrate(state) {
+  if (!Array.isArray(state.userFollows)) {
+    state.userFollows = []
+  }
   state.orders.forEach((order) => {
     if (!order.product) {
       order.product = getProduct(state, order.id === 9002 ? 102 : 101)
@@ -400,7 +404,49 @@ function route(config, state) {
     }
   }
   const publicProfile = path.match(/^\/users\/(\d+)\/public-profile$/)
-  if (method === 'get' && publicProfile) return { ...state.users.find((item) => Number(item.id) === Number(publicProfile[1])) || state.users[1], sellingCount: 2, soldCount: 6 }
+  if (method === 'get' && publicProfile) {
+    const userId = Number(publicProfile[1])
+    return {
+      ...state.users.find((item) => Number(item.id) === userId) || state.users[1],
+      sellingCount: state.products.filter((item) => Number(item.seller?.id) === userId && item.status === 'ON_SALE').length,
+      soldCount: 6,
+      followerCount: state.userFollows.filter((item) => Number(item.followedId) === userId).length,
+      following: state.userFollows.some((item) => Number(item.followerId) === Number(me.id) && Number(item.followedId) === userId),
+    }
+  }
+  const userFollow = path.match(/^\/users\/(\d+)\/follow$/)
+  if (userFollow && ['post', 'delete'].includes(method)) {
+    const followedId = Number(userFollow[1])
+    if (method === 'post' && Number(me.id) !== followedId) {
+      const exists = state.userFollows.some((item) => Number(item.followerId) === Number(me.id) && Number(item.followedId) === followedId)
+      if (!exists) {
+        state.userFollows.push({ id: Date.now(), followerId: me.id, followedId, createdAt: now(), updatedAt: now() })
+      }
+    }
+    if (method === 'delete') {
+      state.userFollows = state.userFollows.filter((item) => !(Number(item.followerId) === Number(me.id) && Number(item.followedId) === followedId))
+    }
+    return {
+      userId: followedId,
+      followerCount: state.userFollows.filter((item) => Number(item.followedId) === followedId).length,
+      following: state.userFollows.some((item) => Number(item.followerId) === Number(me.id) && Number(item.followedId) === followedId),
+    }
+  }
+  if (method === 'get' && path === '/users/me/following') {
+    const list = state.userFollows
+      .filter((item) => Number(item.followerId) === Number(me.id))
+      .map((follow) => {
+        const user = state.users.find((item) => Number(item.id) === Number(follow.followedId)) || state.users[1]
+        return {
+          ...user,
+          followedAt: follow.createdAt,
+          sellingCount: state.products.filter((item) => Number(item.seller?.id) === Number(user.id) && item.status === 'ON_SALE').length,
+          soldCount: 6,
+          followerCount: state.userFollows.filter((item) => Number(item.followedId) === Number(user.id)).length,
+        }
+      })
+    return pageOf(list, params)
+  }
 
   if (method === 'get' && path === '/categories') return state.categories
   if (method === 'get' && path === '/categories/root') return state.categories
@@ -597,7 +643,23 @@ function route(config, state) {
 
   if (method === 'get' && path === '/conversations') return state.conversations
   if (method === 'get' && path === '/conversations/online') return [1, 2]
-  if (method === 'post' && path === '/conversations/start') return state.conversations[0]
+  if (method === 'post' && path === '/conversations/start') {
+    const otherUserId = Number(params.userId)
+    const existing = state.conversations.find((item) => Number(item.otherUserId) === otherUserId)
+    if (existing) return existing
+    const otherUser = state.users.find((item) => Number(item.id) === otherUserId) || state.users[1]
+    const conversation = {
+      id: Date.now(),
+      otherUserId: otherUser.id,
+      otherUserName: otherUser.nickname || otherUser.username,
+      otherUserAvatar: otherUser.avatarUrl,
+      lastMessage: '',
+      lastMessageTime: null,
+      unreadCount: 0,
+    }
+    state.conversations.unshift(conversation)
+    return conversation
+  }
   const messagesMatch = path.match(/^\/conversations\/(\d+)\/messages$/)
   if (messagesMatch && method === 'get') return state.messages.filter((item) => Number(item.conversationId) === Number(messagesMatch[1]))
   if (method === 'post' && path === '/messages') {

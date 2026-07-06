@@ -2,6 +2,7 @@ package com.xsh.trueused.inspection.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
@@ -15,9 +16,12 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.xsh.trueused.consignment.repository.ConsignmentRepository;
+import com.xsh.trueused.entity.Consignment;
 import com.xsh.trueused.entity.Inspection;
 import com.xsh.trueused.entity.Order;
 import com.xsh.trueused.entity.User;
+import com.xsh.trueused.enums.ConsignmentStatus;
+import com.xsh.trueused.enums.ProductStatus;
 import com.xsh.trueused.inspection.repository.InspectionItemRepository;
 import com.xsh.trueused.inspection.repository.InspectionRepository;
 import com.xsh.trueused.inspection.repository.InspectionResultRepository;
@@ -67,6 +71,20 @@ class InspectionServiceTest {
 
         assertEquals(403, ex.getStatusCode().value());
         assertEquals("You are not authorized to view this inspection", ex.getReason());
+    }
+
+    @Test
+    void handleConsignmentInspectionFailureShouldUpdateLinkedProductById() {
+        Consignment consignment = new Consignment();
+        consignment.setId(10L);
+        when(consignmentRepository.findById(10L)).thenReturn(Optional.of(consignment));
+        when(consignmentRepository.findProductIdById(10L)).thenReturn(Optional.of(20L));
+
+        inspectionService.handleConsignmentInspectionFailure(10L);
+
+        assertEquals(ConsignmentStatus.REJECTED, consignment.getStatus());
+        verify(productService).updateInspectionGrade(20L, "X");
+        verify(productService).updateProductStatus(20L, ProductStatus.OFF_SHELF);
     }
 
     private static Order order(Long buyerId, Long sellerId) {

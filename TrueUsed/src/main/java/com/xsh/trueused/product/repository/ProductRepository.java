@@ -32,4 +32,7 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     @Modifying
     @Query("UPDATE Product p SET p.status = :targetStatus WHERE p.id = :id AND p.status = :expectedStatus")
     int updateStatusIfCurrent(Long id, ProductStatus expectedStatus, ProductStatus targetStatus);
+
+    @Query("SELECT p.status FROM Product p WHERE p.id = :id")
+    java.util.Optional<ProductStatus> findStatusById(Long id);
 }

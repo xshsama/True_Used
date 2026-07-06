@@ -1,8 +1,12 @@
 package com.xsh.trueused.product.controller;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -55,27 +59,32 @@ public class ProductController {
     public Page<ProductDTO> myProducts(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) ProductStatus status,
+            @RequestParam(required = false) String statuses,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null)
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.UNAUTHORIZED);
-        return productService.findMyProducts(principal.getId(), q, status, page, size);
+        return productService.findMyProducts(principal.getId(), q, resolveStatuses(status, statuses), page, size);
     }
 
     @GetMapping("/{id}")
     public ProductDTO detail(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
-        // Increment views asynchronously or synchronously
-        productService.incrementViews(id);
+        Long viewerId = principal != null ? principal.getId() : null;
+        boolean admin = principal != null && principal.getRoleNames().contains("ROLE_ADMIN");
+        ProductDTO product = productService.findOneForViewer(id, viewerId, admin)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND));
 
-        // Record browsing history if user is logged in
-        if (principal != null) {
+        if (!isCurrentSeller(product, viewerId)) {
+            productService.incrementViews(id);
+        }
+
+        if (principal != null && !isCurrentSeller(product, viewerId)) {
             browsingHistoryService.recordHistory(principal.getId(), id);
         }
 
-        return productService.findOne(id).orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
-                org.springframework.http.HttpStatus.NOT_FOUND));
+        return product;
     }
 
     @PostMapping
@@ -154,5 +163,34 @@ public class ProductController {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.BAD_REQUEST, e.getMessage());
         }
+    }
+
+    private List<ProductStatus> resolveStatuses(ProductStatus status, String statuses) {
+        List<ProductStatus> resolved = new ArrayList<>();
+        if (status != null) {
+            resolved.add(status);
+        }
+        if (statuses != null && !statuses.isBlank()) {
+            for (String raw : statuses.split(",")) {
+                String value = raw.trim();
+                if (value.isEmpty()) {
+                    continue;
+                }
+                try {
+                    ProductStatus parsed = ProductStatus.valueOf(value);
+                    if (!resolved.contains(parsed)) {
+                        resolved.add(parsed);
+                    }
+                } catch (IllegalArgumentException e) {
+                    throw new org.springframework.web.server.ResponseStatusException(
+                            HttpStatus.BAD_REQUEST, "Invalid product status: " + value);
+                }
+            }
+        }
+        return resolved.isEmpty() ? null : resolved;
+    }
+
+    private boolean isCurrentSeller(ProductDTO product, Long viewerId) {
+        return viewerId != null && product.seller() != null && Objects.equals(product.seller().id(), viewerId);
     }
 }

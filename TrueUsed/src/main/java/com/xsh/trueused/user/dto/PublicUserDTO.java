@@ -12,5 +12,7 @@ public record PublicUserDTO(
                 String location,
                 Instant createdAt,
                 Integer sellingCount,
-                Integer soldCount) {
+                Integer soldCount,
+                Long followerCount,
+                Boolean following) {
 }

@@ -22,7 +22,7 @@ import { useRoute, useRouter } from 'vue-router';
 const route = useRoute();
 const router = useRouter();
 const favoritesStore = useFavoritesStore();
-const { requireLogin } = useAuth();
+const { requireLogin, currentUser } = useAuth();
 
 // --- State ---
 const currentImageIndex = ref(0);
@@ -81,7 +81,16 @@ const displayImages = computed(() => {
         : ['https://via.placeholder.com/800x800?text=No+Image'];
 });
 
-const buyButtonLabel = computed(() => product.value.canBuy ? '立即购买' : '暂不可购买');
+const isOwnProduct = computed(() => {
+    return currentUser.value?.id && seller.value.id && Number(currentUser.value.id) === Number(seller.value.id);
+});
+
+const canPurchase = computed(() => product.value.canBuy && !isOwnProduct.value);
+
+const buyButtonLabel = computed(() => {
+    if (isOwnProduct.value) return '这是你的商品';
+    return product.value.canBuy ? '立即购买' : '暂不可购买';
+});
 
 const officialReportHint = computed(() => {
     if (!product.value.hasPlatformInspection) return '';
@@ -127,6 +136,11 @@ const previewReviewImage = (images, index) => {
 };
 
 const toggleFavorite = async () => {
+    if (isOwnProduct.value) {
+        showFailToast('不能收藏自己发布的商品');
+        return;
+    }
+
     const loggedIn = await requireLogin({ message: '收藏商品需要登录，是否立即登录？' });
     if (!loggedIn) return;
 
@@ -149,6 +163,11 @@ const toggleFavorite = async () => {
 };
 
 const handleChat = async () => {
+    if (isOwnProduct.value) {
+        showFailToast('不能和自己发起会话');
+        return;
+    }
+
     const loggedIn = await requireLogin({ message: '联系卖家需要登录，是否立即登录？' });
     if (!loggedIn) return;
 
@@ -160,7 +179,10 @@ const handleChat = async () => {
     try {
         const res = await createConversation(seller.value.id);
         if (res && res.id) {
-            router.push(`/messages/chat/${res.id}`);
+            router.push({
+                path: `/messages/chat/${res.id}`,
+                query: { productId: product.value.id }
+            });
         } else {
             showFailToast('无法启动会话');
         }
@@ -170,6 +192,11 @@ const handleChat = async () => {
 };
 
 const handleBuy = async () => {
+    if (isOwnProduct.value) {
+        showFailToast('不能购买自己发布的商品');
+        return;
+    }
+
     if (!product.value.canBuy) {
         showFailToast(product.value.buyDisabledReason || '该商品当前不可购买');
         return;
@@ -503,6 +530,10 @@ onMounted(() => {
                         class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                         {{ product.buyDisabledReason || '该商品当前暂不可购买' }}
                     </div>
+                    <div v-else-if="isOwnProduct"
+                        class="mb-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                        这是你发布的商品，买家购买入口已对自己关闭。
+                    </div>
 
                     <!-- Inspection Banner (Official Only) -->
                     <div v-if="product.hasPlatformInspection"
@@ -545,10 +576,10 @@ onMounted(() => {
                     <!-- Action Buttons -->
                     <div class="flex flex-col gap-3">
                         <button @click="handleBuy"
-                            :disabled="!product.canBuy"
+                            :disabled="!canPurchase"
                             :class="[
                                 'w-full font-bold py-3.5 rounded-full text-base transition-all flex items-center justify-center gap-2',
-                                product.canBuy
+                                canPurchase
                                     ? 'bg-gradient-to-r from-[#4a8b6e] to-[#3b755b] text-white shadow-lg shadow-[#4a8b6e]/20 hover:shadow-xl active:scale-95'
                                     : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                             ]">
@@ -556,11 +587,18 @@ onMounted(() => {
                         </button>
                         <div class="flex gap-3">
                             <button @click="handleChat"
-                                class="flex-1 bg-[#4a8b6e]/10 text-[#4a8b6e] font-bold py-3 rounded-full text-sm hover:bg-[#4a8b6e]/20 transition-colors">
+                                :disabled="isOwnProduct"
+                                :class="['flex-1 font-bold py-3 rounded-full text-sm transition-colors', isOwnProduct ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#4a8b6e]/10 text-[#4a8b6e] hover:bg-[#4a8b6e]/20']">
                                 聊一聊
                             </button>
                             <button @click="toggleFavorite"
-                                :class="['flex-1 font-bold py-3 rounded-full text-sm border transition-colors flex items-center justify-center gap-1', isFavorited ? 'border-[#ff5e57] text-[#ff5e57] bg-[#ff5e57]/5' : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50']">
+                                :disabled="isOwnProduct"
+                                :class="[
+                                    'flex-1 font-bold py-3 rounded-full text-sm border transition-colors flex items-center justify-center gap-1',
+                                    isOwnProduct
+                                        ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                                        : (isFavorited ? 'border-[#ff5e57] text-[#ff5e57] bg-[#ff5e57]/5' : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50')
+                                ]">
                                 <Heart :size="16" :fill="isFavorited ? '#ff5e57' : 'none'" />
                                 {{ isFavorited ? '已收藏' : '收藏' }}
                             </button>

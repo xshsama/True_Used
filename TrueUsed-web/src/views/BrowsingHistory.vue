@@ -241,6 +241,16 @@ const userStore = useUserStore();
 
 const historyData = ref([]);
 const loading = ref(false);
+const currentUserId = computed(() => userStore.user?.id);
+
+const ensureCurrentUser = async () => {
+    if (currentUserId.value) return;
+    try {
+        await userStore.loadMe();
+    } catch (error) {
+        console.error('Failed to load current user:', error);
+    }
+};
 
 const fetchHistory = async () => {
     loading.value = true;
@@ -253,38 +263,43 @@ const fetchHistory = async () => {
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
 
-        historyData.value = (res.content || []).map(item => {
-            const viewedDate = new Date(item.viewedAt);
-            const viewedDateZero = new Date(viewedDate);
-            viewedDateZero.setHours(0, 0, 0, 0);
+        historyData.value = (res.content || [])
+            .filter(item => {
+                const product = item.product || {};
+                return product.status === 'ON_SALE' && Number(product.seller?.id) !== Number(currentUserId.value);
+            })
+            .map(item => {
+                const viewedDate = new Date(item.viewedAt);
+                const viewedDateZero = new Date(viewedDate);
+                viewedDateZero.setHours(0, 0, 0, 0);
 
-            let group = 'earlier';
-            if (viewedDateZero.getTime() === today.getTime()) {
-                group = 'today';
-            } else if (viewedDateZero.getTime() === yesterday.getTime()) {
-                group = 'yesterday';
-            }
+                let group = 'earlier';
+                if (viewedDateZero.getTime() === today.getTime()) {
+                    group = 'today';
+                } else if (viewedDateZero.getTime() === yesterday.getTime()) {
+                    group = 'yesterday';
+                }
 
-            const product = item.product;
-            const priceDrop = (product.originalPrice && product.originalPrice > product.price)
-                ? (product.originalPrice - product.price).toFixed(0)
-                : 0;
+                const product = item.product;
+                const priceDrop = (product.originalPrice && product.originalPrice > product.price)
+                    ? (product.originalPrice - product.price).toFixed(0)
+                    : 0;
 
-            return {
-                id: item.id, // history id
-                productId: product.id,
-                group,
-                title: product.title,
-                price: product.price,
-                priceDrop,
-                time: viewedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                image: product.images && product.images.length > 0 ? product.images[0].url : '',
-                sellerName: product.seller ? product.seller.nickname : 'Unknown',
-                sellerAvatar: product.seller ? product.seller.avatarUrl : '',
-                isCollected: false, // TODO: check if collected
-                status: product.status === 'SOLD' ? 'sold' : 'active'
-            };
-        });
+                return {
+                    id: item.id, // history id
+                    productId: product.id,
+                    group,
+                    title: product.title,
+                    price: product.price,
+                    priceDrop,
+                    time: viewedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    image: product.images && product.images.length > 0 ? product.images[0].url : '',
+                    sellerName: product.seller ? product.seller.nickname : 'Unknown',
+                    sellerAvatar: product.seller ? product.seller.avatarUrl : '',
+                    isCollected: false, // TODO: check if collected
+                    status: product.status === 'SOLD' ? 'sold' : 'active'
+                };
+            });
     } catch (error) {
         console.error('Failed to fetch history:', error);
         showToast('获取浏览记录失败');
@@ -293,7 +308,8 @@ const fetchHistory = async () => {
     }
 };
 
-onMounted(() => {
+onMounted(async () => {
+    await ensureCurrentUser();
     fetchHistory();
 });
 

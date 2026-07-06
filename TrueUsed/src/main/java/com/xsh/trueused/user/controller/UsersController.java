@@ -1,8 +1,15 @@
 package com.xsh.trueused.user.controller;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.xsh.trueused.statistics.dto.SellerStatsDTO;
 import com.xsh.trueused.user.dto.UserDTO;
+import com.xsh.trueused.user.dto.FollowingUserDTO;
 import com.xsh.trueused.entity.User;
 import com.xsh.trueused.order.enums.OrderStatus;
 import com.xsh.trueused.enums.ProductStatus;
@@ -20,6 +28,8 @@ import com.xsh.trueused.product.repository.ProductRepository;
 import com.xsh.trueused.coupon.repository.UserCouponRepository;
 import com.xsh.trueused.user.repository.UserRepository;
 import com.xsh.trueused.security.user.UserPrincipal;
+import com.xsh.trueused.user.dto.UserFollowDTO;
+import com.xsh.trueused.user.service.UserFollowService;
 
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +45,7 @@ public class UsersController {
         private final OrderRepository orderRepository;
         private final ChatMessageRepository chatMessageRepository;
         private final UserCouponRepository userCouponRepository;
+        private final UserFollowService userFollowService;
 
         public static record UpdateMeRequest(
                         @Size(max = 50) String nickname,
@@ -110,7 +121,8 @@ public class UsersController {
 
         @GetMapping("/{id}/public-profile")
         public com.xsh.trueused.user.dto.PublicUserDTO getUserProfile(
-                        @org.springframework.web.bind.annotation.PathVariable Long id) {
+                        @PathVariable Long id,
+                        @AuthenticationPrincipal UserPrincipal principal) {
                 User user = userRepository.findById(id)
                                 .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
                                                 org.springframework.http.HttpStatus.NOT_FOUND));
@@ -134,7 +146,38 @@ public class UsersController {
                                 user.getLocation(),
                                 user.getCreatedAt(),
                                 (int) sellingCount,
-                                (int) soldCount);
+                                (int) soldCount,
+                                userFollowService.followerCount(id),
+                                principal != null && userFollowService.isFollowing(principal.getId(), id));
+        }
+
+        @PostMapping("/{id}/follow")
+        public UserFollowDTO follow(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
+                if (principal == null) {
+                        throw new org.springframework.web.server.ResponseStatusException(
+                                        org.springframework.http.HttpStatus.UNAUTHORIZED);
+                }
+                return userFollowService.follow(principal.getId(), id);
+        }
+
+        @DeleteMapping("/{id}/follow")
+        public UserFollowDTO unfollow(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal principal) {
+                if (principal == null) {
+                        throw new org.springframework.web.server.ResponseStatusException(
+                                        org.springframework.http.HttpStatus.UNAUTHORIZED);
+                }
+                return userFollowService.unfollow(principal.getId(), id);
+        }
+
+        @GetMapping("/me/following")
+        public Page<FollowingUserDTO> getMyFollowing(
+                        @AuthenticationPrincipal UserPrincipal principal,
+                        @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+                if (principal == null) {
+                        throw new org.springframework.web.server.ResponseStatusException(
+                                        org.springframework.http.HttpStatus.UNAUTHORIZED);
+                }
+                return userFollowService.listFollowing(principal.getId(), pageable);
         }
 
         @GetMapping("/me/stats")

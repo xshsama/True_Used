@@ -20,7 +20,7 @@ const routes = [
     path: '/coupon-center',
     name: 'CouponCenter',
     component: () => import('@/views/CouponCenter.vue'),
-    meta: { requiresAuth: true, hideNavbar: true },
+    meta: { hideNavbar: true },
   },
   {
     path: '/inspection-reports',
@@ -47,6 +47,12 @@ const routes = [
     path: '/favorites',
     name: 'Favorites',
     component: () => import('@/views/Favorites.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/following',
+    name: 'Following',
+    component: () => import('@/views/Following.vue'),
     meta: { requiresAuth: true },
   },
   {

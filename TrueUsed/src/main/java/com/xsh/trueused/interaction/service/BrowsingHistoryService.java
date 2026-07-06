@@ -1,6 +1,7 @@
 package com.xsh.trueused.interaction.service;
 
 import java.time.Instant;
+import java.util.Objects;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.util.Streamable;
@@ -11,6 +12,7 @@ import com.xsh.trueused.interaction.dto.BrowsingHistoryDTO;
 import com.xsh.trueused.entity.BrowsingHistory;
 import com.xsh.trueused.entity.Product;
 import com.xsh.trueused.entity.User;
+import com.xsh.trueused.enums.ProductStatus;
 import com.xsh.trueused.product.mapper.ProductMapper;
 import com.xsh.trueused.interaction.repository.BrowsingHistoryRepository;
 import com.xsh.trueused.product.repository.ProductRepository;
@@ -28,9 +30,13 @@ public class BrowsingHistoryService {
 
     @Transactional
     public void recordHistory(Long userId, Long productId) {
-        User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found"));
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+        if (product.getSeller() != null && Objects.equals(product.getSeller().getId(), userId)) {
+            return;
+        }
+
+        User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         BrowsingHistory history = browsingHistoryRepository.findByUserIdAndProductId(userId, productId);
         if (history == null) {
@@ -44,7 +50,7 @@ public class BrowsingHistoryService {
 
     @Transactional(readOnly = true)
     public Streamable<BrowsingHistoryDTO> getUserHistory(Long userId, Pageable pageable) {
-        return browsingHistoryRepository.findByUserIdOrderByViewedAtDesc(userId, pageable)
+        return browsingHistoryRepository.findVisibleByUserId(userId, ProductStatus.ON_SALE, pageable)
                 .map(history -> new BrowsingHistoryDTO(
                         history.getId(),
                         ProductMapper.enrich(ProductMapper.toDTO(history.getProduct())),

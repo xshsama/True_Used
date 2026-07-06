@@ -210,10 +210,12 @@
 import { listRootCategories } from '@/api/categories'
 import { listProducts } from '@/api/products'
 import ProductCard from '@/components/ProductCard.vue'
+import { useUserStore } from '@/stores/user'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+const userStore = useUserStore()
 const loading = ref(false)
 const hasMore = ref(true)
 const page = ref(0)
@@ -283,6 +285,11 @@ const fetchCategories = async () => {
 }
 
 const productList = ref([])
+const currentUserId = computed(() => userStore.user?.id)
+
+const isNotOwnProduct = (product) => {
+    return !currentUserId.value || Number(product.seller?.id) !== Number(currentUserId.value)
+}
 
 const fetchProducts = async () => {
     if (loading.value) return
@@ -298,7 +305,7 @@ const fetchProducts = async () => {
         if (page.value === 0) productList.value = []
         totalProducts.value = res.totalElements || 0
 
-        const newItems = res.content || []
+        const newItems = (res.content || []).filter(isNotOwnProduct)
         productList.value.push(...newItems)
         hasMore.value = !res.last
         page.value++

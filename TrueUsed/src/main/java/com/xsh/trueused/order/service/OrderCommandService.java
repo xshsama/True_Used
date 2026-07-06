@@ -30,6 +30,7 @@ import com.xsh.trueused.entity.User;
 import com.xsh.trueused.entity.UserCoupon;
 import com.xsh.trueused.enums.ProductTradeModel;
 import com.xsh.trueused.order.enums.OrderStatus;
+import com.xsh.trueused.enums.CouponType;
 import com.xsh.trueused.enums.ProductStatus;
 import com.xsh.trueused.product.mapper.ProductMapper;
 import com.xsh.trueused.address.repository.AddressRepository;
@@ -143,13 +144,19 @@ public class OrderCommandService {
                 if (!userCoupon.getUser().getId().equals(buyerId)) {
                     throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Coupon does not belong to you");
                 }
+                if (userCoupon.getCoupon().getType() != CouponType.DISCOUNT) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Coupon is not applicable to orders");
+                }
                 if (userCoupon.getIsUsed()) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "Coupon already used");
                 }
                 if (userCoupon.getValidUntil() != null && userCoupon.getValidUntil().isBefore(Instant.now())) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "Coupon expired");
                 }
-                if (product.getPrice().compareTo(userCoupon.getCoupon().getMinSpend()) < 0) {
+                BigDecimal minSpend = userCoupon.getCoupon().getMinSpend() != null
+                        ? userCoupon.getCoupon().getMinSpend()
+                        : BigDecimal.ZERO;
+                if (product.getPrice().compareTo(minSpend) < 0) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT,
                             "Order amount does not meet coupon minimum spend");
                 }
