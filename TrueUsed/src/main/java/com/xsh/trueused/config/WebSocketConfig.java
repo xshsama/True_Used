@@ -1,8 +1,10 @@
 package com.xsh.trueused.config;
 
+import java.security.Principal;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
@@ -17,6 +19,7 @@ import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -40,9 +43,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    private static final String SESSION_PRINCIPAL_KEY = "wsPrincipal";
+
     private final JwtTokenProvider jwtTokenProvider;
     private final UserDetailsService userDetailsService;
     private final TokenRevocationService tokenRevocationService;
+
+    @Value("#{'${security.cors.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*}'.split(',')}")
+    private java.util.List<String> allowedOriginPatterns;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
@@ -74,7 +82,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // 注册一个 STOMP 端点，客户端将使用它来连接到 WebSocket 服务器
         // withSockJS() 是为了在浏览器不支持 WebSocket 时提供备用选项
         registry.addEndpoint("/api/ws")
-                .setAllowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*", "http://192.168.*.*:*") // 明确允许的域
+                .setAllowedOriginPatterns(allowedOriginPatterns.stream()
+                        .map(String::trim)
+                        .filter(pattern -> !pattern.isBlank())
+                        .toArray(String[]::new))
                 .withSockJS();
     }
 
@@ -96,7 +107,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                         authHeader = accessor.getFirstNativeHeader("authorization");
                     }
 
-                    log.info("【WS调试】提取到的 Authorization 头: {}", authHeader);
+                    log.info("【WS调试】Authorization 头是否存在: {}", authHeader != null);
 
                     if (authHeader != null && authHeader.startsWith("Bearer ")) {
                         String token = authHeader.substring(7);
@@ -112,7 +123,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                             if (!userDetails.isEnabled()) {
                                 log.warn("【WS调试】⚠️ 用户已被禁用，拒绝建立 WS 连接: {}", username);
-                                return MessageBuilder.createMessage(message.getPayload(), accessor.getMessageHeaders());
+                                throw new AccessDeniedException("Disabled WebSocket user");
                             }
                             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                                     userDetails, null, userDetails.getAuthorities());
@@ -123,6 +134,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                             Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
                             if (sessionAttributes != null) {
                                 sessionAttributes.put("username", username);
+                                sessionAttributes.put(SESSION_PRINCIPAL_KEY, authentication);
                                 if (userDetails instanceof UserPrincipal) {
                                     sessionAttributes.put("userId", ((UserPrincipal) userDetails).getId());
                                 }
@@ -131,15 +143,48 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                             log.info("【WS调试】✅ 成功设置用户认证信息: {}", username);
                         } else {
                             log.error("【WS调试】❌ Token 无效！");
+                            throw new AccessDeniedException("Invalid WebSocket token");
                         }
                     } else {
                         log.warn("【WS调试】⚠️ Authorization 头为空或格式不对 (必须以 'Bearer ' 开头)");
+                        throw new AccessDeniedException("Missing WebSocket bearer token");
                     }
+                } else if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+                    requireAuthenticated(accessor, "subscription");
+                    validateSubscription(accessor);
+                } else if (StompCommand.SEND.equals(accessor.getCommand())) {
+                    requireAuthenticated(accessor, "send");
                 }
                 // Ensure we return a message with the modified accessor headers
                 return MessageBuilder.createMessage(message.getPayload(), accessor.getMessageHeaders());
             }
         });
+    }
+
+    private Principal requireAuthenticated(StompHeaderAccessor accessor, String action) {
+        if (accessor.getUser() != null) {
+            return accessor.getUser();
+        }
+        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+        Object principal = sessionAttributes == null ? null : sessionAttributes.get(SESSION_PRINCIPAL_KEY);
+        if (principal instanceof Principal authenticatedUser) {
+            accessor.setUser(authenticatedUser);
+            return authenticatedUser;
+        }
+        throw new AccessDeniedException("Unauthenticated WebSocket " + action);
+    }
+
+    private void validateSubscription(StompHeaderAccessor accessor) {
+        String destination = accessor.getDestination();
+        if (destination == null) {
+            throw new AccessDeniedException("Missing WebSocket destination");
+        }
+        if (destination.startsWith("/topic/user/")) {
+            throw new AccessDeniedException("Private user messages must use /user/queue destinations");
+        }
+        if (destination.startsWith("/topic/") && !"/topic/presence".equals(destination)) {
+            throw new AccessDeniedException("Unsupported topic subscription");
+        }
     }
 
     @Component
