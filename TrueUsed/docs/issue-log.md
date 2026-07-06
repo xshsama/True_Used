@@ -236,3 +236,38 @@
   Word 版需求文档已生成，最终渲染为 3 页，未发现表格裁切、文字重叠或页脚错位。
 - 后续建议：
   后续若需要正式答辩版，可在该 Word 基础上补封面学校信息、成员信息和评审要求字段。
+
+## 2026-07-06 RFC/CVE 安全加固与 PR 准备
+
+- 问题描述：
+  需要对 TrueUsed 仓库做 RFC 不符合项、CVE/依赖漏洞和高风险安全边界审计，并在确认 upstream 未被他人更新后直接修复、验证并准备 PR。
+- 根因分析：
+  WebSocket 私聊曾额外发布到可猜测的公开 `/topic/user/{id}`，且无效 STOMP CONNECT 只记录不拒绝；JWT 缺少 RFC 7519 的 issuer/audience/jti 绑定；生产默认 CORS、refresh cookie、错误信息和 SQL 日志不够收敛；前端 lockfile 存在 npm audit 报告的已知漏洞；支付前端直接执行后端返回 HTML；PDF 错误响应和文件名头部构造缺少防御性处理。
+- 解决方法：
+  拒绝无效 WebSocket CONNECT/SEND/SUBSCRIBE，限制公开 topic 并改用 `/user/queue/messages` 私聊队列；为 JWT 增加并校验 issuer/audience/jti；将 CORS、refresh cookie、错误信息和 SQL 日志改为安全默认和环境变量配置；升级 axios、vite、plugin-vue、unocss 及 lockfile；支付表单改为 DOMParser 惰性解析、HTTPS Alipay host allowlist 和隐藏字段重建提交；PDF 响应用 `ContentDisposition` 并避免返回内部异常详情；补充相关测试与环境示例。
+- 修改文件：
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed/src/main/java/com/xsh/trueused/config/WebSocketConfig.java`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed/src/main/java/com/xsh/trueused/chat/controller/MessageController.java`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed-web/src/stores/message.js`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed/src/main/java/com/xsh/trueused/security/jwt/JwtTokenProvider.java`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed/src/test/java/com/xsh/trueused/security/jwt/JwtTokenProviderTest.java`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed/src/main/java/com/xsh/trueused/security/config/SecurityConfig.java`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed/src/main/java/com/xsh/trueused/auth/service/LoginService.java`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed/src/main/java/com/xsh/trueused/inspection/controller/InspectionController.java`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed/pom.xml`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed/src/main/resources/application.properties`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed/src/test/java/com/xsh/trueused/security/config/SecurityConfigTest.java`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed/src/test/java/com/xsh/trueused/auth/service/LoginServiceTest.java`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed-web/src/api/payments.js`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed-web/package.json`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed-web/package-lock.json`
+  `/Users/skyhua/Documents/2nd/True_Used/package-lock.json`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed/.env.example`
+  `/Users/skyhua/Documents/2nd/True_Used/docs/.env.example`
+  `/Users/skyhua/Documents/2nd/True_Used/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  已确认本地 HEAD 与 `origin/main` 均为 `032139d6df3c705bebf8e5c07306ce6eed819641` 后开始修改；完成 Codex Security deep scan 并生成 5 个 finding 报告；执行 `git diff --check`；执行根目录 `npm audit --omit=dev`；执行 `TrueUsed-web` 下 `npm ci`、`npm audit`、`npm run build`；执行 `TrueUsed` 下 `mvn test`；通过 OSV API 查询显式 Maven 依赖；检查本地 Java/Maven 运行时。
+- 结果：
+  前端 npm audit 与根目录生产依赖 audit 均为 0 vulnerabilities，Vite 构建通过但保留既有 `@apply` 和 `:deep(...)` CSS minify warning；OSV 对显式 Maven 依赖未返回漏洞；首次 `mvn test` 暴露 JDK 24 下 Lombok annotation processor `1.18.32` 的 `TypeTag UNKNOWN` 编译问题，已将 `maven-compiler-plugin` 的 Lombok processor 版本改为 `${lombok.version}`；随后修复 JWT `validateToken` 未复用 `parseAllClaims` 的 issuer/audience 校验遗漏，最终 `mvn test` 通过 50 个测试且 0 failures/errors。
+- 后续建议：
+  补充 WebSocket 集成测试和支付表单 allowlist 浏览器测试；生产部署时设置真实 `JWT_SECRET`、`SECURITY_CORS_ALLOWED_ORIGIN_PATTERNS`、`SECURITY_REFRESH_COOKIE_SECURE=true` 与正式 Alipay/Cloudinary 配置。
