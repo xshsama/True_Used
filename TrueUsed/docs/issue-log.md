@@ -196,3 +196,43 @@
   已完成单项目内的管理员控制台接入，不需要新开前端工程；普通用户无法直接访问 `/admin`，管理员可在同一登录体系下进入后台执行用户状态管理和提现审核。
 - 后续建议：
   下一步建议继续补后台的订单仲裁、举报处理、验货任务调度与运营看板接口，避免管理端停留在“只有面板、缺少平台操作闭环”的阶段。
+
+## 2026-07-06 编写需求文档初稿
+
+- 问题描述：
+  需要为 TrueUsed 输出一版精简需求文档初稿，并包含不少于 5 条用例、不少于 2 个竞品和不少于 2 个技术候选方案。
+- 根因分析：
+  仓库已有 README、ROADMAP 和接口说明，但缺少面向产品验收的短版 PRD，竞品与技术取舍也没有集中沉淀。
+- 解决方法：
+  基于当前商品、交易、验货、物流、售后、后台模块现状，新增需求文档，补充功能范围、核心用例、竞品分析表、技术选型矩阵和验收指标。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/docs/requirements-draft.md`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  人工核对文档是否满足用例数量、竞品数量、候选方案数量和精简表达要求。
+- 结果：
+  已完成需求文档初稿，范围聚焦二手交易 MVP，未扩写到复杂生产化平台。
+- 后续建议：
+  后续可在确认真实课程或答辩要求后，再补页面原型、接口清单和测试用例明细。
+
+## 2026-07-06 生成需求文档 Word 版
+
+- 问题描述：
+  Markdown 初稿不满足“完整 Word 文档”的交付形式，需要生成可直接打开和提交的 `.docx` 文件。
+- 根因分析：
+  需求初稿已有内容和表格，但缺少 Word 文件、正式页眉页脚、封面信息和渲染校验。
+- 解决方法：
+  基于现有需求初稿整理 Word 版，补充标题区、文档信息、页眉页脚和表格样式，并通过 DOCX 渲染生成 PDF/PNG 预览检查版式。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/output/doc/TrueUsed-需求文档初稿.docx`
+  `/Users/xshsama/code/TrueUsed/output/render/requirements-draft-final/TrueUsed-需求文档初稿.pdf`
+  `/Users/xshsama/code/TrueUsed/output/render/requirements-draft-final/page-1.png`
+  `/Users/xshsama/code/TrueUsed/output/render/requirements-draft-final/page-2.png`
+  `/Users/xshsama/code/TrueUsed/output/render/requirements-draft-final/page-3.png`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  使用 `render_docx.py` 将 DOCX 渲染为 PDF 和 3 页 PNG，逐页检查标题、表格、中文换行、页眉页脚和分页。
+- 结果：
+  Word 版需求文档已生成，最终渲染为 3 页，未发现表格裁切、文字重叠或页脚错位。
+- 后续建议：
+  后续若需要正式答辩版，可在该 Word 基础上补封面学校信息、成员信息和评审要求字段。
