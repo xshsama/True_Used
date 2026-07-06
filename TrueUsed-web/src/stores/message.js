@@ -53,9 +53,9 @@ export const useMessageStore = defineStore('message', () => {
 
         // Subscribe to user's private topic (using ID-based topic for reliability)
         if (userStore.user && userStore.user.id) {
-          console.log('Subscribing to /topic/user/' + userStore.user.id)
+          console.log('Subscribing to /user/queue/messages')
           stompClient.value.subscribe(
-            `/topic/user/${userStore.user.id}`,
+            '/user/queue/messages',
             (message) => {
               const msg = JSON.parse(message.body)
               handleIncomingMessage(msg)

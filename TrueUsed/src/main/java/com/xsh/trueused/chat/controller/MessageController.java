@@ -2,7 +2,6 @@ package com.xsh.trueused.chat.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -12,8 +11,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.xsh.trueused.chat.dto.ChatMessageDTO;
 import com.xsh.trueused.chat.dto.SendMessageRequest;
-import com.xsh.trueused.entity.User;
-import com.xsh.trueused.user.repository.UserRepository;
 import com.xsh.trueused.security.user.UserPrincipal;
 import com.xsh.trueused.chat.service.ChatMessageService;
 
@@ -24,9 +21,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class MessageController {
 
-        private final SimpMessagingTemplate simpMessagingTemplate;
         private final ChatMessageService chatMessageService;
-        private final UserRepository userRepository;
 
         @PostMapping
         public ResponseEntity<ChatMessageDTO> sendMessage(@RequestBody SendMessageRequest request,
@@ -38,15 +33,6 @@ public class MessageController {
                 // Save message to DB
                 ChatMessageDTO savedMessage = chatMessageService.saveMessage(sender.getId(), request.getReceiverId(),
                                 request.getContent());
-
-                // Find receiver's username to send via WebSocket
-                User receiver = userRepository.findById(request.getReceiverId())
-                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Receiver not found"));
-
-                // Send to receiver via topic
-                simpMessagingTemplate.convertAndSend(
-                                "/topic/user/" + receiver.getId(),
-                                savedMessage);
 
                 return ResponseEntity.ok(savedMessage);
         }
