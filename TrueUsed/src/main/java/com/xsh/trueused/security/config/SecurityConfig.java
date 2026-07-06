@@ -2,6 +2,7 @@ package com.xsh.trueused.security.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -30,6 +31,9 @@ import lombok.RequiredArgsConstructor;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Value("#{'${security.cors.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*}'.split(',')}")
+    private java.util.List<String> allowedOriginPatterns;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -95,12 +99,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // 允许本机与局域网 IP 的任意端口（开发环境），生产请精确到具体域名
-        config.setAllowedOriginPatterns(java.util.List.of(
-                "http://localhost:*",
-                "http://127.0.0.1:*",
-                "http://192.168.*.*:*",
-                "http://10.*.*.*:*"));
+        config.setAllowedOriginPatterns(allowedOriginPatterns.stream()
+                .map(String::trim)
+                .filter(pattern -> !pattern.isBlank())
+                .toList());
         config.setAllowCredentials(true);
         config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         // 放宽请求头，避免预检因为自定义头/浏览器头失败

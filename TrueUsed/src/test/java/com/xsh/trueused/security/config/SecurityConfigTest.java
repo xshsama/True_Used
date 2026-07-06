@@ -1,7 +1,9 @@
 package com.xsh.trueused.security.config;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Map;
@@ -73,6 +75,20 @@ class SecurityConfigTest {
     void shouldRequireAuthenticationForPrivateUserAndOrderEndpoints() throws Exception {
         mockMvc.perform(get("/api/users/me")).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/orders/1")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldOnlyAllowConfiguredCorsOriginsByDefault() throws Exception {
+        mockMvc.perform(options("/api/products")
+                .header("Origin", "http://localhost:5173")
+                .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+
+        mockMvc.perform(options("/api/products")
+                .header("Origin", "http://192.168.1.20:5173")
+                .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
