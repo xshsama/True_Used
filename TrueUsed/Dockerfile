@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+
 
 # 多阶段构建：第一阶段编译 Spring Boot 应用
 FROM maven:3.9-eclipse-temurin-21 AS builder
