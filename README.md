@@ -44,6 +44,7 @@ docker compose up -d --build
 
 1. 复制环境变量示例文件：
    ```bash
+   cd TrueUsed
    cp TrueUsed/.env.example .env
    ```
 
