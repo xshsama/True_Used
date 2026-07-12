@@ -11,16 +11,18 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.alipay.api.internal.util.AlipaySignature;
+import com.xsh.trueused.api.ApiResponse;
 import com.xsh.trueused.config.AlipayConfiguration;
 import com.xsh.trueused.payment.dto.AlipayRequest;
+import com.xsh.trueused.payment.dto.AlipayFormResponse;
 import com.xsh.trueused.order.service.OrderCommandService;
 import com.xsh.trueused.payment.service.AlipayService;
 import com.xsh.trueused.security.user.UserPrincipal;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,23 +37,28 @@ public class AlipayController {
     private final OrderCommandService orderCommandService;
 
     @PostMapping("/pay")
-    public ResponseEntity<String> pay(@RequestBody AlipayRequest alipayRequest,
-            @AuthenticationPrincipal UserPrincipal currentUser) {
+    public ResponseEntity<ApiResponse<AlipayFormResponse>> pay(@Valid @RequestBody AlipayRequest alipayRequest,
+            @AuthenticationPrincipal UserPrincipal currentUser) throws Exception {
+        Long orderId = parseOrderId(alipayRequest.getOutTradeNo());
+        BigDecimal amount = parseAmount(alipayRequest.getTotalAmount());
+        orderCommandService.assertAlipayPaymentRequestAllowed(orderId, currentUser.getId(), amount);
+        String form = alipayService.createPayment(alipayRequest);
+        return ResponseEntity.ok(ApiResponse.success(new AlipayFormResponse(form)));
+    }
+
+    private Long parseOrderId(String outTradeNo) {
         try {
-            Long orderId = Long.parseLong(alipayRequest.getOutTradeNo());
-            BigDecimal amount = new BigDecimal(alipayRequest.getTotalAmount());
-            orderCommandService.assertAlipayPaymentRequestAllowed(orderId, currentUser.getId(), amount);
-            String form = alipayService.createPayment(alipayRequest);
-            return ResponseEntity.ok(form);
+            return Long.parseLong(outTradeNo);
         } catch (NumberFormatException e) {
-            log.warn("Invalid Alipay request: outTradeNo={}, totalAmount={}",
-                    alipayRequest.getOutTradeNo(), alipayRequest.getTotalAmount());
-            return ResponseEntity.badRequest().body("Invalid payment request");
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Payment creation failed for outTradeNo {}", alipayRequest.getOutTradeNo(), e);
-            return ResponseEntity.internalServerError().body("Payment creation failed");
+            throw new IllegalArgumentException("Invalid payment request");
+        }
+    }
+
+    private BigDecimal parseAmount(String totalAmount) {
+        try {
+            return new BigDecimal(totalAmount);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid payment request");
         }
     }
 

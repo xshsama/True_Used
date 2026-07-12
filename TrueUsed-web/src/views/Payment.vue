@@ -127,7 +127,7 @@ const handlePayment = async () => {
         }
     } catch (error) {
         console.error('Payment failed', error);
-        showFailToast(error?.response?.data?.message || '支付失败');
+        showFailToast(error?.response?.data?.message || error?.message || '支付失败');
     } finally {
         isProcessing.value = false;
     }
@@ -149,7 +149,7 @@ const confirmWalletPayment = async () => {
         showSuccess.value = true;
     } catch (error) {
         console.error('Wallet payment failed', error);
-        showFailToast(error?.response?.data?.message || '余额支付失败');
+        showFailToast(error?.response?.data?.message || error?.message || '余额支付失败');
     } finally {
         isProcessing.value = false;
     }

@@ -512,3 +512,255 @@
   前端构建通过；空白检查通过；目标文案已从聊天页移除；构建仍保留项目既有 `:deep(...)` lightningcss warning。
 - 后续建议：
   如果后续接后端商品会话绑定，再只在有真实商品数据时恢复交易模式卡。
+
+## 2026-07-07 生成项目架构图与 ER 图
+
+- 问题描述：
+  项目缺少集中维护的系统架构图、后端模块分层图、交易链路图和数据库 ER 图。
+- 根因分析：
+  前端、后端、数据库迁移、运维编排和业务链路分散在不同目录中，单看 README 或实体类难以快速理解整体边界。
+- 解决方法：
+  基于 `TrueUsed` 后端、`TrueUsed-web` 前端、Docker Compose、Flyway 迁移脚本和 JPA 实体，新增 Mermaid 文档，覆盖系统架构、后端分层、交易时序、订单状态流转、完整 ER 图和数据域拆分。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/docs/architecture-er.md`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  静态核对项目目录、控制器入口、配置文件、迁移脚本和实体关系，并检查 Markdown/Mermaid 代码块结构。
+- 结果：
+  已生成可直接在支持 Mermaid 的 Markdown 工具中渲染的架构图与 ER 图文档。
+- 后续建议：
+  后续新增表、外部服务或交易状态时，同步更新该文档，避免架构图与真实实现漂移。
+
+## 2026-07-08 强化三层架构表达
+
+- 问题描述：
+  现有架构图更偏部署拓扑和模块关系，不够直观看出“表示层、业务逻辑层、数据访问层”的三层架构。
+- 根因分析：
+  图中前端、后端、数据层虽已存在，但没有按教学口径显式标注三层职责、类比和前后端分离解耦边界。
+- 解决方法：
+  重写 `docs/architecture-er.md` 第一张架构图，新增三层架构说明表，并在 Mermaid 图中按表示层、API 契约层、业务逻辑层、数据访问层纵向组织节点；补充 Mock/Postman 并行开发和统一 API 契约说明。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/docs/architecture-er.md`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  静态检查 Markdown 结构、Mermaid 代码块边界和 `git diff --check`。
+- 结果：
+  架构图已能明确体现三层架构，适配课程教案中的餐厅分工类比。
+- 后续建议：
+  答辩或教学展示时优先使用第一张“三层架构图”，需要讲细节时再切到后续后端模块图和 ER 图。
+
+## 2026-07-08 精简核心流程 ER 图
+
+- 问题描述：
+  原 ER 图展示了全库大部分表和字段，关系线过多，答辩或教学场景下难以快速看清主流程。
+- 根因分析：
+  全量 ER 图混入角色权限、聊天通知、收藏浏览、优惠券等支撑表，导致商品交易主链路被稀释。
+- 解决方法：
+  将 `docs/architecture-er.md` 的 ER 图改为核心流程版，只保留用户、分类、商品、图片、地址、订单、钱包流水、寄售、验货、退款和评价等主流程实体，并精简字段到关键主外键与状态字段。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/docs/architecture-er.md`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  静态检查 Mermaid 代码块边界、章节结构和 `git diff --check`。
+- 结果：
+  ER 图已从全量库表视图改为主流程视图，关系更清晰，便于按“发布商品 -> 下单支付 -> 验货物流 -> 售后评价”讲解。
+- 后续建议：
+  若需要完整数据库审计，再单独维护全量 ER 附录，不放在主流程图中。
+
+## 2026-07-08 生成核心 REST API 文档
+
+- 问题描述：
+  现有 `docs/api.md` 只列出部分接口，且订单、退款、验货等路径与当前 Controller 实现存在不一致，无法作为主链路联调基线。
+- 根因分析：
+  后端接口持续演进后，API 文档没有同步更新；退款实际挂载在 `/api/orders/{id}/refund-*`，订单列表实际为 `/api/orders/my-orders` 和 `/api/orders/sold-orders`，寄卖验货与钱包结算规则也未完整记录。
+- 解决方法：
+  基于当前 Controller、DTO、安全配置和核心 Service 逻辑重写 `docs/api.md`，按 REST 资源组织认证、用户、地址、商品、寄卖、验货、订单、支付、钱包、退款、评价、通知等主链路接口，并补充状态流转图、枚举、请求体样例、权限和业务前置条件。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/docs/api.md`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  静态核对 `AuthController`、`ProductController`、`ConsignmentController`、`InspectionController`、`OrderController`、`RefundController`、`WalletController`、`ReviewController` 等接口定义；执行 Markdown 关键路径检索和 `git diff --check`。
+- 结果：
+  已生成以真实实现为准的核心 REST API 文档，覆盖主交易链路和联调所需的关键支撑接口。
+- 后续建议：
+  若后续启动 API v2，优先将支付、发货、退款处理从命令型路径迁移为 `payments`、`shipments`、`refunds` 等子资源。
+
+## 2026-07-08 删除架构图运维节点
+
+- 问题描述：
+  三层架构图中仍包含 Docker、Prometheus、Grafana、k6、Actuator/Micrometer 等运维和部署相关内容，不符合只展示课程三层架构的要求。
+- 根因分析：
+  初版架构图混合了教学三层架构、业务外部服务和运维支撑，导致图中出现与主讲内容无关的部署监控节点。
+- 解决方法：
+  删除 `docs/architecture-er.md` 三层架构图中的 Metrics 节点、运维支撑子图以及 Docker/Prometheus/Grafana/k6 相关连线，只保留表示层、API 契约层、业务逻辑层、数据访问层和业务外部服务。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/docs/architecture-er.md`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  使用 `rg` 检索确认架构文档中不再出现 Docker、Prometheus、Grafana、k6、Actuator、Micrometer、运维等关键词，并执行 `git diff --check`。
+- 结果：
+  架构图已移除运维部署内容，三层架构表达更聚焦。
+- 后续建议：
+  如需展示部署和监控，后续单独维护运维拓扑图，不混入课程三层架构图。
+
+## 2026-07-08 精简核心 API 文档
+
+- 问题描述：
+  `docs/api.md` 覆盖接口过多，包含关注、评论、私信、通知、后台统计等非主链路内容，阅读成本偏高。
+- 根因分析：
+  上一版 API 文档按 Controller 覆盖面整理，虽然完整，但没有严格区分交易主链路和支撑能力，导致答辩或联调时重点不够集中。
+- 解决方法：
+  重写 `docs/api.md` 为主链路短版，只保留认证、商品、寄卖、验货、地址、订单支付、物流确认、钱包、退款和评价接口；移除关注、收藏、浏览历史、评论、私信、通知、统计和后台管理接口章节。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/docs/api.md`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  执行章节检索、主链路关键路径检索和 `git diff --check`。
+- 结果：
+  API 文档从全量接口视角收敛为主交易链路视角，接口数量和篇幅明显减少。
+- 后续建议：
+  若需要完整接口清单，可另建 `docs/api-full.md`，主文档保持当前精简口径。
+
+## 2026-07-08 生成 API Word 文档
+
+- 问题描述：
+  需要将当前精简版核心 API 文档交付为 Word 文件，便于查看、提交或打印。
+- 根因分析：
+  现有 `docs/api.md` 为 Markdown 格式，适合源码维护，但不适合直接作为 Word 附件交付。
+- 解决方法：
+  使用 `python-docx` 将 `docs/api.md` 转换为 Word 文档，保留标题、表格、代码块和列表结构；修正生成脚本字体为 macOS 自带 `Hiragino Sans GB`，避免 PDF 渲染时中文缺字。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/docs/api.md`
+  `/Users/xshsama/code/TrueUsed/output/doc/TrueUsed-Core-REST-API.docx`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  使用 `python-docx` 校验 Word 结构；用 LibreOffice 将 DOCX 渲染为 PDF，再用 `pdftoppm` 转 PNG，人工抽查首页、表格页和末页。
+- 结果：
+  已生成 Word 版核心 API 文档，渲染检查通过；LibreOffice 转换过程中仅出现 fontconfig 缓存不可写警告，不影响输出。
+- 后续建议：
+  后续 API 文档更新后，重新从 `docs/api.md` 生成 Word，避免 Markdown 与 Word 内容漂移。
+
+## 2026-07-08 拆分核心 ER 子图
+
+- 问题描述：
+  `docs/architecture-er.md` 中核心 ER 图仍集中在一张大图里，用户希望按几个核心数据库/数据域拆成多个子图。
+- 根因分析：
+  订单、资金、寄售验货、售后评价共用 `users`、`products`、`orders` 等锚点，全部塞进一个 Mermaid ER 图会导致关系线密集，不利于答辩或教学讲解。
+- 解决方法：
+  将单张核心流程 ER 图拆为用户商品地址、订单支付钱包、寄售验货、售后评价 4 个子图，并补充拆分规则和跨图锚点说明。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/docs/architecture-er.md`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  使用 `rg` 检查 Markdown 章节与 Mermaid 代码块边界；执行 `git diff --check -- docs/architecture-er.md`。
+- 结果：
+  ER 图已按核心数据域拆分，主链路关系更清晰；现有 PDF 未重新导出，Markdown 可在支持 Mermaid 的编辑器中直接渲染。
+- 后续建议：
+  若需要提交 PDF 版，安装 Mermaid CLI 或使用 Typora/Obsidian 重新导出，避免 PDF 与 Markdown 漂移。
+
+## 2026-07-08 强化外部服务与业务逻辑层说明
+
+- 问题描述：
+  三层架构图里外部服务归属不清，业务逻辑层内部职责解释不够直观。
+- 根因分析：
+  原图将支付宝、Cloudinary 直接连在 Service 后面，容易被误解为业务逻辑层或数据访问层的一部分；业务逻辑层也把 Controller、Security、Advice、Service、状态机和调度任务平铺展示，读图时难以区分横切支撑和真正业务规则。
+- 解决方法：
+  在架构表中新增“外部资源”边界说明；明确外部服务既不是业务逻辑层也不是数据访问层；将业务逻辑层拆成“入口与横切支撑”和“业务规则与流程编排”两个子区，并新增 External Adapter 节点隔离第三方 API。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/docs/architecture-er.md`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  静态检查 Markdown 章节、Mermaid 代码块边界和 `git diff --check -- docs/architecture-er.md`。
+- 结果：
+  架构图已明确外部服务是系统边界外资源，业务逻辑层的核心职责和支撑职责更容易区分。
+- 后续建议：
+  若后续新增短信、对象存储或风控接口，统一放入外部资源区，并通过业务层 Adapter 调用。
+
+## 2026-07-09 补强核心后端模块单元测试
+
+- 问题描述：
+  后端核心业务模块已有部分测试，但注册、收藏、评论、关注、评价、支付策略、热度计算、分类映射和商品降价/状态缓存等关键分支覆盖不足。
+- 根因分析：
+  现有测试集中在订单、钱包、退款、安全等主链路，部分用户交互与支付策略服务缺少针对权限、幂等、状态跳转和依赖调用的单元断言。
+- 解决方法：
+  新增纯 JUnit 5 + Mockito 单元测试，覆盖注册唯一性校验、收藏幂等与计数刷新、评论目标校验与删除回复过滤、关注防自关注与幂等、评价订单权限/状态/重复评价、订单支付策略状态流转、热度计算公式和分类 DTO 映射；扩展商品服务测试覆盖降价通知与状态缓存刷新。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/auth/service/RegisterServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/category/service/CategoryServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/interaction/service/CommentServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/interaction/service/FavoriteServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/order/payment/OrderPaymentStrategyFactoryTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/order/payment/OrderPaymentStrategyTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/product/service/ProductServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/review/service/ReviewServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/statistics/service/HeatCalculationServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/user/service/UserFollowServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  使用 Homebrew OpenJDK 临时指定 `JAVA_HOME` 执行 `./mvnw test`。
+- 结果：
+  后端全量测试通过，`Tests run: 95, Failures: 0, Errors: 0, Skipped: 0`。
+- 后续建议：
+  后续可加入 JaCoCo 覆盖率报告，并优先补 Controller 层 `MockMvc` 测试校验统一 `ApiResponse` 与 Spring Security 权限边界。
+
+## 2026-07-09 提交订单命令服务单元测试
+
+- 问题描述：
+  需要将订单命令服务相关单元测试纳入 Git 提交，避免测试覆盖改动只停留在本地。
+- 根因分析：
+  当前仓库的 `src/test/java` 并未被 `.gitignore` 忽略；实际待提交内容是已跟踪的 `OrderCommandServiceTest` 扩展用例。
+- 解决方法：
+  保留构建产物和测试报告的忽略规则，只提交订单创建、优惠券抵扣、卖家发货、平台发货、确认收货结算和已支付订单取消退款等单元测试源码。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/order/service/OrderCommandServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  执行 `git diff --check`；尝试运行 `./mvnw -Dtest=OrderCommandServiceTest test`。
+- 结果：
+  静态 diff 检查通过；Maven 测试因当前终端环境缺少 Java Runtime 未能执行。
+- 后续建议：
+  在本机配置 JDK 21 后执行 `./mvnw -Dtest=OrderCommandServiceTest test` 或 `./mvnw test`。
+
+## 2026-07-09 生成核心流程测试用例
+
+- 问题描述：
+  核心业务流程需要更直接的测试用例，覆盖寄售入库、验货结果、交易出库、物流发货、确认收货与取消退款等关键状态流转。
+- 根因分析：
+  原有测试已覆盖部分异常分支和基础服务逻辑，但核心流程的编排副作用分散在 `ConsignmentService`、`InspectionService` 和 `OrderCommandService` 中，缺少贯穿状态、库存、资金、通知的高价值断言。
+- 解决方法：
+  扩展服务层 JUnit 5 + Mockito 单元测试：新增寄售创建/带物流创建/仓库签收触发验货、验货成功上架评级、下单锁库存、优惠券抵扣、卖家发货、平台招商发货、确认收货结算、已付款取消退款等用例。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/consignment/service/ConsignmentServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/inspection/service/InspectionServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/order/service/OrderCommandServiceTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  使用 Homebrew OpenJDK 显式指定 `JAVA_HOME` 执行 `./mvnw test -Dtest=OrderCommandServiceTest,ConsignmentServiceTest,InspectionServiceTest` 和 `./mvnw test`。
+- 结果：
+  目标测试集通过，`Tests run: 20, Failures: 0, Errors: 0, Skipped: 0`；后端全量测试通过，`Tests run: 105, Failures: 0, Errors: 0, Skipped: 0`。
+- 后续建议：
+  后续可补 Controller 层 `MockMvc` 测试，验证统一 `ApiResponse` 包装和 Spring Security 用户权限边界。
+
+## 2026-07-12 修复支付宝收银台异常提示
+
+- 问题描述：
+  支付页面在发起支付宝支付时容易落入“网络异常，请重新操作”这类模糊提示，无法区分是请求失败、支付表单无效，还是沙箱返回了非预期内容。
+- 根因分析：
+  `/api/alipay/pay` 之前直接返回字符串，和项目统一 `ApiResponse` 体系不一致；前端 `createPayment` 只接受裸 HTML 表单，遇到包装后的响应或异常对象时会把真实错误压成泛化的网络态。
+- 解决方法：
+  将 `/api/alipay/pay` 改为返回 `ApiResponse<AlipayFormResponse>`，保留表单 HTML 但不再裸字符串输出；前端支付请求兼容包装后的表单载荷，并在 `Payment.vue` 和旧 `Cashier.vue` 中透出 `error.message`，减少无意义的网络兜底提示。
+- 修改文件：
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/payment/controller/AlipayController.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/payment/dto/AlipayRequest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/main/java/com/xsh/trueused/payment/dto/AlipayFormResponse.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/src/test/java/com/xsh/trueused/payment/controller/AlipayControllerTest.java`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/api/payments.js`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/Payment.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed-web/src/views/Cashier.vue`
+  `/Users/xshsama/code/TrueUsed/TrueUsed/docs/issue-log.md`
+- 验证方式：
+  使用 `/opt/homebrew/Cellar/openjdk/23.0.2/bin/java` 跑 `JAVA_HOME=/opt/homebrew/Cellar/openjdk/23.0.2 ./mvnw -q -Dtest=AlipayControllerTest,SecurityConfigTest test`；在 `TrueUsed-web` 下执行 `npm run build`。
+- 结果：
+  后端支付宝支付控制器测试通过，前端 Vite 构建通过；支付宝支付表单现在会以统一响应体返回，前端错误提示也能显示更具体的失败原因。
+- 后续建议：
+  再补一层浏览器端支付流程测试，覆盖沙箱返回表单、非表单响应和金额不匹配三种场景。

@@ -5,7 +5,23 @@ const ALIPAY_ALLOWED_HOSTS = new Set([
   'openapi-sandbox.dl.alipaydev.com',
 ])
 
-function submitTrustedAlipayForm(html) {
+function resolvePaymentFormHtml(payload) {
+  if (typeof payload === 'string') {
+    return payload
+  }
+  if (payload && typeof payload === 'object') {
+    if (typeof payload.htmlForm === 'string') {
+      return payload.htmlForm
+    }
+    if (payload.data && typeof payload.data.htmlForm === 'string') {
+      return payload.data.htmlForm
+    }
+  }
+  throw new Error('支付表单无效')
+}
+
+function submitTrustedAlipayForm(payload) {
+  const html = resolvePaymentFormHtml(payload)
   const doc = new DOMParser().parseFromString(html, 'text/html')
   const form = doc.querySelector('form')
   if (!form) {
@@ -49,7 +65,7 @@ export function createPayment({ outTradeNo, totalAmount, subject, body }) {
       totalAmount,
       subject,
       body,
-    })
+    }, { silent: true })
     .then((res) => {
       submitTrustedAlipayForm(res)
       return true

@@ -127,6 +127,7 @@ const handlePay = async () => {
       // createPayment handles the redirection
     } catch (error) {
       console.error('Alipay failed:', error)
+      alert('支付失败: ' + (error.response?.data?.message || error.message || '未知错误'))
       loading.value = false
     }
   } else if (paymentMethod.value === 'wallet') {
@@ -164,7 +165,7 @@ const confirmWalletPay = async () => {
     router.push('/payment/success')
   } catch (error) {
     console.error('Wallet pay failed:', error)
-    alert('支付失败: ' + (error.response?.data?.message || '未知错误'))
+    alert('支付失败: ' + (error.response?.data?.message || error.message || '未知错误'))
   } finally {
     loading.value = false
   }
