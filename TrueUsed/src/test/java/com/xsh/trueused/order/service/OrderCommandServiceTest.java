@@ -1,12 +1,17 @@
 package com.xsh.trueused.order.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -30,9 +35,13 @@ import com.xsh.trueused.enums.ProductStatus;
 import com.xsh.trueused.notification.service.NotificationService;
 import com.xsh.trueused.observability.metrics.BusinessMetricsRecorder;
 import com.xsh.trueused.order.dto.CreateOrderRequest;
+import com.xsh.trueused.order.dto.OrderDTO;
+import com.xsh.trueused.order.dto.ShippingInfoDTO;
+import com.xsh.trueused.order.enums.OrderStatus;
 import com.xsh.trueused.order.payment.OrderPaymentStrategyFactory;
 import com.xsh.trueused.order.repository.OrderRepository;
 import com.xsh.trueused.order.state.OrderStateMachine;
+import com.xsh.trueused.order.state.OrderTransition;
 import com.xsh.trueused.product.repository.ProductRepository;
 import com.xsh.trueused.product.service.ProductService;
 import com.xsh.trueused.user.repository.UserRepository;
@@ -198,6 +207,68 @@ class OrderCommandServiceTest {
         assertEquals("Payment amount does not match order amount", ex.getReason());
     }
 
+    @Test
+    void confirmDeliveryShouldRejectBeforePackageIsDelivering() {
+        Order order = shippedOrder(1L, 100L, 200L);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(shippingService.reconstructShippingInfo(
+                eq("SF10001"),
+                eq("顺丰速运"),
+                eq(order.getShippedAt()),
+                eq("SELLER_OUTBOUND"),
+                eq("发货地"),
+                eq(""),
+                any(Address.class)))
+                .thenReturn(ShippingInfoDTO.builder()
+                        .trackingNumber("SF10001")
+                        .shippingStatus("IN_TRANSIT")
+                        .build());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> orderCommandService.confirmOrderDelivery(1L, 100L));
+
+        assertEquals(409, ex.getStatusCode().value());
+        assertEquals("Package is not ready for delivery confirmation yet", ex.getReason());
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(walletService);
+    }
+
+    @Test
+    void confirmDeliveryShouldCompleteWhenPackageIsDelivering() throws Exception {
+        Order order = shippedOrder(1L, 100L, 200L);
+        OrderDTO resultDto = new OrderDTO();
+        resultDto.setId(1L);
+        ShippingInfoDTO shippingInfo = ShippingInfoDTO.builder()
+                .trackingNumber("SF10001")
+                .shippingStatus("DELIVERING")
+                .build();
+
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(shippingService.reconstructShippingInfo(
+                eq("SF10001"),
+                eq("顺丰速运"),
+                eq(order.getShippedAt()),
+                eq("SELLER_OUTBOUND"),
+                eq("发货地"),
+                eq(""),
+                any(Address.class)))
+                .thenReturn(shippingInfo);
+        when(objectMapper.writeValueAsString(any(ShippingInfoDTO.class)))
+                .thenReturn("{\"shippingStatus\":\"DELIVERING\"}");
+        when(orderStateMachine.nextStatus(OrderStatus.SHIPPED, OrderTransition.CONFIRM_DELIVERY))
+                .thenReturn(OrderStatus.COMPLETED);
+        when(orderQueryService.getOrderById(1L)).thenReturn(resultDto);
+
+        OrderDTO result = orderCommandService.confirmOrderDelivery(1L, 100L);
+
+        assertEquals(resultDto, result);
+        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+        assertNotNull(order.getDeliveredAt());
+        assertEquals("{\"shippingStatus\":\"DELIVERING\"}", order.getShippingSnapshot());
+        verify(orderRepository).save(order);
+        verify(walletService).transferToSeller(200L, 100L, 1L, new BigDecimal("6800.00"));
+    }
+
     private static CreateOrderRequest createOrderRequest(Long productId, Long addressId) {
         CreateOrderRequest request = new CreateOrderRequest();
         request.setProductId(productId);
@@ -246,7 +317,21 @@ class OrderCommandServiceTest {
         order.setBuyer(user(buyerId));
         order.setSeller(user(sellerId));
         order.setPrice(price);
-        order.setStatus(com.xsh.trueused.order.enums.OrderStatus.PENDING_PAYMENT);
+        order.setStatus(OrderStatus.PENDING_PAYMENT);
+        return order;
+    }
+
+    private static Order shippedOrder(Long orderId, Long buyerId, Long sellerId) {
+        Order order = order(orderId, buyerId, sellerId, new BigDecimal("6800.00"));
+        Product product = new Product();
+        product.setId(10L);
+        order.setProduct(product);
+        order.setAddress(address(20L, buyerId));
+        order.setStatus(OrderStatus.SHIPPED);
+        order.setTrackingNumber("SF10001");
+        order.setExpressCompany("顺丰速运");
+        order.setExpressCode("SF");
+        order.setShippedAt(Instant.parse("2026-07-06T12:00:00Z"));
         return order;
     }
 
