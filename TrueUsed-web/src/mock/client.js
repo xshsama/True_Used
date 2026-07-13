@@ -8,6 +8,29 @@ const clone = (value) => {
 
 const now = () => new Date().toISOString()
 const dayMs = 24 * 60 * 60 * 1000
+const pickedAfterMs = 10 * 1000
+const departedAfterMs = 20 * 1000
+const transitAfterMs = 40 * 1000
+const deliveringAfterMs = 60 * 1000
+const deliveryStationAfterMs = 80 * 1000
+const deliveredAfterMs = 120 * 1000
+const shippingStatusElapsedMs = {
+  PENDING: 0,
+  PICKED: pickedAfterMs,
+  IN_TRANSIT: transitAfterMs,
+  DELIVERING: deliveringAfterMs,
+  DELIVERED: deliveredAfterMs,
+}
+const expressCodes = {
+  顺丰速运: 'SF',
+  中通快递: 'ZTO',
+  圆通速递: 'YTO',
+  韵达快递: 'YD',
+  申通快递: 'STO',
+  极兔速递: 'JT',
+  邮政EMS: 'EMS',
+  京东物流: 'JD',
+}
 const placeholder = (text) =>
   `https://via.placeholder.com/900x700/24333f/ffffff?text=${encodeURIComponent(text)}`
 
@@ -103,8 +126,11 @@ const seed = () => ({
       paidAt: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
       shippingInfo: {
         expressCompany: '顺丰速运',
+        expressCode: 'SF',
         trackingNumber: 'MOCK-SF-9001',
         shippingStatus: 'DELIVERING',
+        shippedAt: new Date(Date.now() - 70 * 1000).toISOString(),
+        estimatedDeliveryTime: new Date(Date.now() + 50 * 1000).toISOString(),
         trackingEvents: [
           { time: new Date(Date.now() - 9 * 60 * 60 * 1000).toISOString(), status: 'PICKED', location: '上海平台仓', description: '平台仓已出库' },
           { time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), status: 'DELIVERING', location: '上海徐汇', description: '快件正在派送中' },
@@ -312,6 +338,20 @@ function json(config, data) {
   }
 }
 
+function httpError(config, status, message) {
+  const error = new Error(message)
+  error.config = config
+  error.response = {
+    data: { code: status, message, data: null, timestamp: Date.now(), mock: true },
+    status,
+    statusText: message,
+    headers: { 'x-trueused-mock': '1' },
+    config,
+    request: {},
+  }
+  return error
+}
+
 function normalizePath(url = '') {
   return new URL(url, 'http://mock.trueused.local').pathname.replace(/^\/api/, '') || '/'
 }
@@ -355,6 +395,75 @@ function getOrder(state, id) {
   const order = state.orders.find((item) => Number(item.id) === Number(id)) || state.orders[0]
   if (!order.product) order.product = getProduct(state, 101)
   return order
+}
+
+function offsetTime(base, ms) {
+  return new Date(new Date(base).getTime() + ms).toISOString()
+}
+
+function resolveShippingStart(order) {
+  const explicitShippingStart =
+    order.shippedAt ||
+    order.shippingInfo?.shippedAt ||
+    order.shippingInfo?.trackingEvents?.[0]?.time
+  if (explicitShippingStart) return explicitShippingStart
+
+  const status = order.shippingInfo?.shippingStatus || 'PENDING'
+  const elapsedMs = shippingStatusElapsedMs[status] ?? 0
+  return new Date(Date.now() - elapsedMs - 1000).toISOString()
+}
+
+function refreshMockShippingInfo(order) {
+  if (!order) return null
+
+  const shippedAt = resolveShippingStart(order)
+  const shippedAtMs = new Date(shippedAt).getTime()
+  const elapsedMs = Date.now() - shippedAtMs
+  const expressCompany = order.shippingInfo?.expressCompany || order.expressCompany || '顺丰速运'
+  const trackingNumber = order.shippingInfo?.trackingNumber || order.trackingNumber || `MOCK-${order.id}`
+  const expressCode = order.shippingInfo?.expressCode || order.expressCode || expressCodes[expressCompany] || 'OTHER'
+  const estimatedDeliveryTime = offsetTime(shippedAt, deliveredAfterMs)
+  const sender = order.product?.locationText || 'mock 仓'
+  const receiver = order.address?.city || '收货地'
+
+  const timeline = [
+    { afterMs: 0, status: 'PENDING', location: sender, description: '卖家已发货，快递员正在揽收中' },
+    { afterMs: pickedAfterMs, status: 'PICKED', location: `${sender}营业部`, description: '快递员已揽收，正在发往分拨中心' },
+    { afterMs: departedAfterMs, status: 'IN_TRANSIT', location: `${sender}分拨中心`, description: `快件已到达分拨中心，准备发往${receiver}` },
+    { afterMs: transitAfterMs, status: 'IN_TRANSIT', location: '郑州转运中心', description: `快件已到达郑州转运中心，正在发往${receiver}` },
+    { afterMs: deliveringAfterMs, status: 'DELIVERING', location: `${receiver}分拨中心`, description: '快件已到达目的地分拨中心，正在派送中' },
+    { afterMs: deliveryStationAfterMs, status: 'DELIVERING', location: `${receiver}配送站`, description: '快件正在派送中，派送员：李师傅，电话：138****8888' },
+    { afterMs: deliveredAfterMs, status: 'DELIVERED', location: receiver, description: `快件已签收，签收人：本人签收。感谢使用${expressCompany}！` },
+  ]
+
+  const trackingEvents = timeline
+    .filter((event) => elapsedMs >= event.afterMs)
+    .map((event) => ({
+      time: offsetTime(shippedAt, event.afterMs),
+      status: event.status,
+      location: event.location,
+      description: event.description,
+    }))
+
+  const shippingInfo = {
+    ...(order.shippingInfo || {}),
+    shipmentType: order.product?.tradeModel === 'OFFICIAL_INSPECTION' ? 'PLATFORM_OUTBOUND' : 'SELLER_OUTBOUND',
+    expressCompany,
+    expressCode,
+    trackingNumber,
+    shippingStatus: trackingEvents[trackingEvents.length - 1]?.status || 'PENDING',
+    shippedAt,
+    estimatedDeliveryTime,
+    trackingEvents,
+  }
+
+  order.shippingInfo = shippingInfo
+  order.expressCompany = expressCompany
+  order.expressCode = expressCode
+  order.trackingNumber = trackingNumber
+  order.shippedAt = shippedAt
+  order.estimatedDeliveryTime = estimatedDeliveryTime
+  return shippingInfo
 }
 
 function route(config, state) {
@@ -506,8 +615,14 @@ function route(config, state) {
 
   if (method === 'get' && path === '/history') return pageOf(state.histories.map((item) => ({ ...item, product: getProduct(state, item.productId) })), params)
 
-  if (method === 'get' && path === '/orders/my-orders') return state.orders
-  if (method === 'get' && path === '/orders/sold-orders') return state.orders
+  if (method === 'get' && path === '/orders/my-orders') {
+    state.orders.filter((order) => order.status === 'SHIPPED').forEach(refreshMockShippingInfo)
+    return state.orders
+  }
+  if (method === 'get' && path === '/orders/sold-orders') {
+    state.orders.filter((order) => order.status === 'SHIPPED').forEach(refreshMockShippingInfo)
+    return state.orders
+  }
   if (method === 'post' && path === '/orders') {
     const product = getProduct(state, data.productId)
     const order = {
@@ -525,9 +640,13 @@ function route(config, state) {
     return order
   }
   const orderMatch = path.match(/^\/orders\/(\d+)$/)
-  if (orderMatch && method === 'get') return getOrder(state, orderMatch[1])
+  if (orderMatch && method === 'get') {
+    const order = getOrder(state, orderMatch[1])
+    if (order.status === 'SHIPPED') refreshMockShippingInfo(order)
+    return order
+  }
   const shippingMatch = path.match(/^\/orders\/(\d+)\/shipping$/)
-  if (shippingMatch && method === 'get') return getOrder(state, shippingMatch[1]).shippingInfo || {}
+  if (shippingMatch && method === 'get') return refreshMockShippingInfo(getOrder(state, shippingMatch[1])) || {}
   if (method === 'get' && path === '/orders/express-companies') return ['顺丰速运', '京东快递', '中通快递']
   const orderAction = path.match(/^\/orders\/(\d+)\/(pay|pay-wallet|ship|confirm-delivery|cancel|refund-request|refund-detail|refund-approve|refund-reject|refund-complete)$/)
   if (orderAction) {
@@ -540,16 +659,35 @@ function route(config, state) {
     }
     if (method === 'put' && orderAction[2] === 'ship') {
       order.status = 'SHIPPED'
+      order.shippedAt = now()
+      order.expressCompany = data.expressCompany || '顺丰速运'
+      order.expressCode = expressCodes[order.expressCompany] || 'OTHER'
+      order.trackingNumber = data.trackingNumber || `MOCK-${order.id}`
       order.shippingInfo = {
+        shipmentType: order.product?.tradeModel === 'OFFICIAL_INSPECTION' ? 'PLATFORM_OUTBOUND' : 'SELLER_OUTBOUND',
         expressCompany: data.expressCompany || '顺丰速运',
+        expressCode: order.expressCode,
         trackingNumber: data.trackingNumber || `MOCK-${order.id}`,
-        shippingStatus: 'PICKED',
-        trackingEvents: [{ time: now(), status: 'PICKED', location: 'mock 仓', description: '已揽收' }],
+        shippingStatus: 'PENDING',
+        shippedAt: order.shippedAt,
+        estimatedDeliveryTime: offsetTime(order.shippedAt, deliveredAfterMs),
+        trackingEvents: [{ time: order.shippedAt, status: 'PENDING', location: 'mock 仓', description: '卖家已发货，快递员正在揽收中' }],
       }
       return order
     }
     if (method === 'put' && orderAction[2] === 'confirm-delivery') {
+      if (Number(order.buyer?.id) !== Number(me.id)) {
+        throw httpError(config, 403, "You are not authorized to confirm this order's delivery")
+      }
+      if (order.status !== 'SHIPPED') {
+        throw httpError(config, 409, 'Order delivery cannot be confirmed')
+      }
+      const shippingInfo = refreshMockShippingInfo(order)
+      if (!['DELIVERING', 'DELIVERED'].includes(shippingInfo?.shippingStatus)) {
+        throw httpError(config, 409, 'Package is not ready for delivery confirmation yet')
+      }
       order.status = 'COMPLETED'
+      order.deliveredAt = now()
       return order
     }
     if (method === 'put' && orderAction[2] === 'cancel') {
