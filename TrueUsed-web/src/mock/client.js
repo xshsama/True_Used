@@ -404,11 +404,14 @@ function offsetTime(base, ms) {
 function resolveShippingStart(order) {
   const explicitShippingStart =
     order.shippedAt ||
-    order.shippingInfo?.shippedAt ||
-    order.shippingInfo?.trackingEvents?.[0]?.time
+    order.shippingInfo?.shippedAt
   if (explicitShippingStart) return explicitShippingStart
 
-  const status = order.shippingInfo?.shippingStatus || 'PENDING'
+  const status = order.shippingInfo?.shippingStatus
+  if (!status) {
+    return order.shippingInfo?.trackingEvents?.[0]?.time || now()
+  }
+
   const elapsedMs = shippingStatusElapsedMs[status] ?? 0
   return new Date(Date.now() - elapsedMs - 1000).toISOString()
 }
