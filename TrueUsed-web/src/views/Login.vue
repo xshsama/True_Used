@@ -170,8 +170,20 @@
                                 </div>
 
                                 <div class="flex items-start gap-2 text-xs text-gray-500 pt-1">
-                                    <div class="w-3.5 h-3.5 rounded border border-gray-300 bg-white flex-shrink-0 flex items-center justify-center transition-colors cursor-pointer mt-0.5" :class="{'bg-[#4a8b6e] border-[#4a8b6e]': agreed}" @click="agreed = !agreed">
-                                        <div v-if="agreed" class="w-2 h-2 bg-white rounded-sm"></div>
+                                    <!-- 协议勾选小圆圈 -->
+                                    <div 
+                                        @click="agreed = !agreed"
+                                        :class="[
+                                            'w-4 h-4 rounded-full border flex-shrink-0 flex items-center justify-center cursor-pointer transition-all duration-300 select-none mt-0.5',
+                                            agreed 
+                                                ? 'bg-[#4a8b6e] border-[#4a8b6e] scale-110 shadow-[0_2px_8px_rgba(74,139,110,0.4)]' 
+                                                : 'bg-white border-gray-400 hover:border-[#4a8b6e] hover:scale-105 shadow-sm'
+                                        ]"
+                                    >
+                                        <!-- 内部选中的白色微型小圆点，带有淡入淡出和缩放动画 -->
+                                        <transition name="pop">
+                                            <div v-if="agreed" class="w-1.5 h-1.5 bg-white rounded-full"></div>
+                                        </transition>
                                     </div>
                                     <span @click="agreed = !agreed" class="cursor-pointer select-none">
                                         我已阅读并同意 
@@ -399,5 +411,17 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 }
 .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
+}
+/* 白色小圆点弹出的动效 */
+.pop-enter-active {
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); /* 弹性动画 */
+}
+.pop-leave-active {
+    transition: all 0.15s ease-in;
+}
+.pop-enter-from,
+.pop-leave-to {
+    opacity: 0;
+    transform: scale(0); /* 从 0 放大到 1 */
 }
 </style>
