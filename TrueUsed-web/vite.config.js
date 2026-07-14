@@ -2,13 +2,32 @@ import vue from '@vitejs/plugin-vue'
 import path from 'path'
 import UnoCSS from 'unocss/vite'
 import { defineConfig, loadEnv } from 'vite'
+import { visualizer } from 'rollup-plugin-visualizer'
+import viteCompression from 'vite-plugin-compression' // 1. 引入压缩插件
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8081'
 
   return {
-    plugins: [vue(), UnoCSS()],
+    plugins: [
+      vue(), 
+      UnoCSS(),
+      visualizer({
+        open: true,
+        filename: 'stats.html',
+        gzipSize: true,
+        brotliSize: true
+      }),
+      // 2. 启用 Gzip 压缩配置
+      viteCompression({
+        verbose: true,     // 是否在控制台输出压缩结果
+        disable: false,    // 是否禁用
+        threshold: 10240,  // 体积大于 10KB 的文件才进行压缩
+        algorithm: 'gzip', // 压缩算法
+        ext: '.gz',        // 生成的文件后缀
+      })
+    ],
     build: {
       chunkSizeWarningLimit: 600,
       rollupOptions: {
@@ -47,7 +66,6 @@ export default defineConfig(({ mode }) => {
       allowedHosts: true,
       open: true,
       proxy: {
-        // 将 /api 代理到后端 Spring Boot
         '/api': {
           target: apiProxyTarget,
           changeOrigin: true,

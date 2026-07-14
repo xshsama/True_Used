@@ -1,7 +1,8 @@
 {
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.78",
-    "playwright": "^1.58.2"
+    "playwright": "^1.58.2",
+    "rollup-plugin-visualizer": "^7.0.1"
   },
   "dependencies": {
     "lucide-vue-next": "^0.556.0"
