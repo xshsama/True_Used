@@ -32,3 +32,6 @@ logs/
 # Temp files
 *.tmp
 *.temp
+
+# Tools and Caches
+.workbuddy/
