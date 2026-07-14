@@ -7,9 +7,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ '*' ] # 匹配本地所有的单层分支
   pull_request:
-    branches: [main, develop]
+    branches: [ '*' ]
 
 # 同一分支的新推送自动取消旧跑次
 concurrency:
