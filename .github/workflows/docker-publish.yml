@@ -7,9 +7,11 @@ name: Docker Publish
 
 on:
   push:
-    branches: [main]
+    branches: 
+      - main
+      - feature/member1-frontend-core # 临时添加你的分支进行测试
     tags: ['v*']
-  workflow_dispatch: # 支持手动触发
+  workflow_dispatch:
 
 concurrency:
   group: docker-publish-${{ github.ref }}
