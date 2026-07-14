@@ -29,12 +29,6 @@ jobs:
           cd TrueUsed-web
           npm ci
 
-      # 如果项目配置了 ESLint 等校验，可以启用此步骤
-      # - name: Lint Code
-      #   run: |
-      #     cd TrueUsed-web
-      #     npm run lint
-
       - name: Build Frontend
         run: |
           cd TrueUsed-web
@@ -49,10 +43,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup JDK 17
+      # 已将 JDK 版本修复为 21
+      - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17' # 匹配你后端使用的 JDK 版本
+          java-version: '21' 
           distribution: 'temurin'
           cache: maven
 
